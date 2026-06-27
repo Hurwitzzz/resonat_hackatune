@@ -16,6 +16,19 @@ If a requested change touches any of these areas, warn that it may overlap with 
 
 Small integration hooks are fine, but avoid redesigning those owned components without coordination.
 
+## Handling Conflicts With Existing Docs
+
+When Hewga explains their current intent, requirements, or understanding of their owned work, compare it against existing project docs and teammate-authored content.
+
+If an existing document conflicts with Hewga's current explanation:
+
+1. Tell Hewga what the conflict is before editing.
+2. Prefer Hewga's current explanation as the source of truth for Hewga-owned work.
+3. Update the conflicting documentation to match Hewga's current understanding, unless Hewga asks to defer the change.
+4. After editing, explicitly tell Hewga which files and statements were changed.
+
+Do not silently rewrite teammate-authored content. Make the conflict and the correction visible.
+
 ## Git / Commit Workflow Preference
 
 When working in Hewga's thread, use small, feature-level commits. After finishing each small feature or coherent documentation update, create a commit instead of accumulating unrelated work.
