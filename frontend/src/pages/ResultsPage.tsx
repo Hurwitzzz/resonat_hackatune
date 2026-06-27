@@ -11,17 +11,23 @@ import { SAMPLE_TRACKS, trackUrl, type SampleTrack } from "../sampleTracks";
 import type { RecommendationCard } from "../api";
 
 const displayTitle = (card: RecommendationCard) =>
-  card.title || card.track_id || card.cyanite_id;
+  card.title || (card.track_id ? `Track ${card.track_id}` : "Recommended track");
 
 const displayArtist = (card: RecommendationCard) =>
-  card.artist || (card.source === "similar" ? "Cyanite similar match" : "Cyanite prompt match");
+  card.artist || "Unknown artist";
 
-const toTrack = (card: RecommendationCard, index: number): SampleTrack => ({
+const coverForCard = (card: RecommendationCard) => {
+  const id = card.cyanite_id || card.track_id;
+  const hash = [...id].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return SAMPLE_TRACKS[hash % SAMPLE_TRACKS.length].cover;
+};
+
+const toTrack = (card: RecommendationCard): SampleTrack => ({
   id: card.cyanite_id,
   title: displayTitle(card),
   artist: displayArtist(card),
   url: card.track_id ? trackUrl(card.track_id) : "",
-  cover: SAMPLE_TRACKS[index % SAMPLE_TRACKS.length].cover,
+  cover: coverForCard(card),
 });
 
 const ResultsPage = () => {

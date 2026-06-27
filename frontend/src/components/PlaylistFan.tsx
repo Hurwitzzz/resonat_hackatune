@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import MusicCard from "./MusicCard";
 import TrackReasonModal from "./TrackReasonModal";
@@ -52,9 +52,13 @@ const PlaylistFan = ({
   const hoverTimer = useRef<number | null>(null);
   const replaceTimers = useRef<number[]>([]);
 
-  const visibleTracks = cards
-    .map((card) => card?.track)
-    .filter((track): track is SampleTrack => Boolean(track));
+  const visibleTracks = useMemo(
+    () =>
+      cards
+        .map((card) => card?.track)
+        .filter((track): track is SampleTrack => Boolean(track)),
+    [cards],
+  );
   const { playingId, play, stop } = useAudioPlayer(visibleTracks, PRELOAD_ORDER);
 
   const activeIndex = hovered ?? CENTER_SLOT;
@@ -77,15 +81,19 @@ const PlaylistFan = ({
   );
 
   useEffect(() => {
-    setCards(
-      SLOTS.map((_, i) =>
-        tracks[i]
-          ? {
-              instanceId: nextInstanceId.current++,
-              track: tracks[i],
-            }
-          : null,
-      ),
+    setCards((prev) =>
+      SLOTS.map((_, i) => {
+        const track = tracks[i];
+        if (!track) return null;
+        const current = prev[i];
+        if (current?.track.id === track.id) {
+          return { ...current, track };
+        }
+        return {
+          instanceId: nextInstanceId.current++,
+          track,
+        };
+      }),
     );
   }, [tracks]);
 

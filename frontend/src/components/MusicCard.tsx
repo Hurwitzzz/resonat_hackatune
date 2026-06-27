@@ -90,7 +90,7 @@ const MusicCard = ({
           <img
             src={cover}
             alt={`${title} cover art`}
-            loading="lazy"
+            loading="eager"
             className="absolute inset-0 h-full w-full object-cover"
           />
         )}

@@ -80,9 +80,9 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       setExplanation("");
       setSessionId(null);
       setCards([]);
+      setExplanationsByTrackId({});
       return null;
     }
-    setExplanation(buildPseudoExplanation(notesRef.current));
     try {
       const result = await intent(text);
       setSessionId(result.session_id);
@@ -118,7 +118,17 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   const sendFeedback = async (trackId: string, verdict: "like" | "dislike") => {
     if (!sessionId) return;
     const result = await feedback(sessionId, trackId, verdict);
-    setCards(result.cards);
+    if (verdict === "like") return;
+    setCards((prev) => {
+      const previousIds = new Set(prev.map((card) => card.cyanite_id));
+      const refill = result.cards.find((card) => !previousIds.has(card.cyanite_id));
+      if (!refill) {
+        return prev.filter((card) => card.cyanite_id !== trackId && card.track_id !== trackId);
+      }
+      return prev.map((card) =>
+        card.cyanite_id === trackId || card.track_id === trackId ? refill : card,
+      );
+    });
     if (verdict === "dislike") {
       setExplanationsByTrackId((prev) => {
         const next = { ...prev };
