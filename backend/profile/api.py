@@ -15,6 +15,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import mdmemory
@@ -77,13 +78,35 @@ def injection(user_id: str):
     return {"user_id": user_id, "injection": mdmemory.prompt_injection(user_id)}
 
 
-@router.get("/profile/{user_id}/markdown")
-def markdown(user_id: str):
+@router.get("/profile/{user_id}/memory")
+def memory_md(user_id: str):
+    """The natural-language profile (memory.md) — what /intent injects."""
     import os
-    p = mdmemory._path(user_id)
+    p = mdmemory._memory_path(user_id)
     if not os.path.exists(p):
         raise HTTPException(404, "no memory for this user yet")
     return {"user_id": user_id, "markdown": open(p).read()}
+
+
+@router.get("/profile/{user_id}/evidence")
+def evidence_md(user_id: str):
+    """The append-only raw evidence log (evidence.md)."""
+    import os
+    p = mdmemory._evidence_path(user_id)
+    if not os.path.exists(p):
+        raise HTTPException(404, "no evidence for this user yet")
+    return {"user_id": user_id, "markdown": open(p).read()}
+
+
+@router.get("/profile/{user_id}/card.png")
+def taste_card(user_id: str):
+    """A rendered 'Taste Card' PNG visualizing the user's memory (for the demo)."""
+    from . import visualize
+    try:
+        path = visualize.render_card(user_id)
+    except SystemExit:
+        raise HTTPException(404, "no memory for this user yet")
+    return FileResponse(path, media_type="image/png")
 
 
 # ---- standalone app ---------------------------------------------------------

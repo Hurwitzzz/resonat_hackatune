@@ -14,6 +14,13 @@ USER = "demo_user"   # write to a throwaway profile so we don't clobber real one
 
 
 def main():
+    # start clean (evidence.md is append-only, so reruns would otherwise stack)
+    import os
+    for p in (mdmemory._evidence_path(USER), mdmemory._memory_path(USER),
+              mdmemory._state_path(USER)):
+        if os.path.exists(p):
+            os.remove(p)
+
     # grab some real catalog track ids to react to (from a data-pack user)
     data.load()
     real = data.user_liked_cyanite("4006097")
@@ -52,8 +59,10 @@ def main():
     print("\n=== prompt_injection (for /intent) ===")
     print(mdmemory.prompt_injection(USER))
 
-    print(f"\n=== markdown written to: {mdmemory._path(USER)} ===")
-    print(open(mdmemory._path(USER)).read()[:1600])
+    print(f"\n=== memory.md written to: {mdmemory._memory_path(USER)} ===")
+    print(open(mdmemory._memory_path(USER)).read()[:1200])
+    print(f"\n=== evidence.md written to: {mdmemory._evidence_path(USER)} ===")
+    print(open(mdmemory._evidence_path(USER)).read()[:600])
 
 
 if __name__ == "__main__":

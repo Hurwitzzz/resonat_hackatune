@@ -14,5 +14,6 @@ __pycache__/
 
 # backend caches & runtime memory (do not commit Cyanite model outputs per challenge license)
 backend/**/.cache/
-backend/profile/memories/*.md
-!backend/profile/memories/.gitkeep
+backend/profile/memory/*.md
+backend/profile/memory/*.json
+!backend/profile/memory/.gitkeep

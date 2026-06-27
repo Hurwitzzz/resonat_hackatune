@@ -39,6 +39,11 @@ def audio_url(cyanite_id):
     return f"https://prod-1.storage.jamendo.com/download/track/{jid}/mp32/" if jid else None
 
 
+def user_ids():
+    load()
+    return list(_users.keys())
+
+
 def user_liked_cyanite(user_id):
     load()
     return [_j2c[j] for j in _users.get(str(user_id), []) if j in _j2c]

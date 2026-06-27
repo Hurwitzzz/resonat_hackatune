@@ -1,9 +1,16 @@
-"""User-defined taste memory, stored as one Markdown file per user (skill format).
+"""User-defined taste memory (PRD-night contract): two markdown files per user,
+no database.
 
-Each user's memory lives at  memories/<user_id>.md  — human-readable and
-explainable (you can literally open it and read what the system "knows").
-A fenced ```json state block at the bottom is the machine-readable source of
-truth we parse on load; the body above it is the rendered, human view.
+  memory/<user_id>.evidence.md  — APPEND-ONLY raw truth: one line per feedback
+                                  event (prompt -> liked id). Doubles as the
+                                  similarById seed pool and the profile basis.
+  memory/<user_id>.memory.md    — natural-language profile, REWRITTEN each update
+                                  (LLM if a key is set, else a rule-based fallback).
+                                  /intent injects this verbatim into the system prompt.
+
+  memory/<user_id>.state.json   — internal engine cache (affinities, anchors, IDF
+                                  distinctiveness, scenarios). DERIVED — rebuildable
+                                  by replaying evidence.md; not part of the contract.
 
 The single entry point is record_feedback(); everything else is read views.
 
@@ -19,9 +26,11 @@ import re
 import time
 
 from . import tags as tagmod
+from . import salience
+from . import config
 
-MEMORIES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memories")
-os.makedirs(MEMORIES_DIR, exist_ok=True)
+MEM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
+os.makedirs(MEM_DIR, exist_ok=True)
 
 # how strongly each verdict moves affinity
 SIGNAL = {"like": 1.0, "play": 0.3, "skip": -0.3, "dislike": -0.8, "note": 0.0}
@@ -29,14 +38,27 @@ ALPHA = 0.3          # EMA learning rate for tag affinities
 NUM_ALPHA = 0.25     # EMA rate for numeric axes (bpm/valence/arousal)
 CAT_DIMS = ["moods", "genres", "instruments", "character", "movement"]
 AVOID_THRESHOLD = -0.25
+REDUNDANT_OVERLAP = 0.6   # facet-overlap above which a new like is "redundant"
+_EMOJI = {"like": "👍", "dislike": "👎", "skip": "⏭", "play": "▶", "note": "📝"}
 
 
 # ---------------------------------------------------------------------------
-# storage: parse / render the per-user markdown file
+# storage: three files per user (evidence.md truth, memory.md profile, state.json)
 # ---------------------------------------------------------------------------
-def _path(user_id):
-    safe = re.sub(r"[^A-Za-z0-9_-]", "_", str(user_id))
-    return os.path.join(MEMORIES_DIR, f"{safe}.md")
+def _safe(user_id):
+    return re.sub(r"[^A-Za-z0-9_-]", "_", str(user_id))
+
+
+def _evidence_path(user_id):
+    return os.path.join(MEM_DIR, f"{_safe(user_id)}.evidence.md")
+
+
+def _memory_path(user_id):
+    return os.path.join(MEM_DIR, f"{_safe(user_id)}.memory.md")
+
+
+def _state_path(user_id):
+    return os.path.join(MEM_DIR, f"{_safe(user_id)}.state.json")
 
 
 def _empty(user_id):
@@ -46,27 +68,31 @@ def _empty(user_id):
             "numeric": {k: None for k in ("bpm", "valence", "arousal")},
             "tempo": {}, "vocals": {},
             "scenarios": {},          # mood -> {"bpm": [..], "genres": {..}}
+            "exemplars": [],          # anchor tracks (CBR); redundant likes reinforce these
+            "last_decision": None,    # explanation of the most recent write
             "notes": [], "evidence": []}
 
 
 def load(user_id):
-    p = _path(user_id)
+    """Load the internal engine state from <uid>.state.json."""
+    p = _state_path(user_id)
     if not os.path.exists(p):
         return _empty(user_id)
-    text = open(p).read()
-    m = re.search(r"```json\s*(\{.*\})\s*```", text, re.S)
-    if not m:
-        return _empty(user_id)
     try:
-        return json.loads(m.group(1))
-    except json.JSONDecodeError:
+        with open(p) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
         return _empty(user_id)
 
 
-def save(state):
+def save(state, use_llm=None):
+    """Persist engine state (state.json) and re-render the memory.md profile.
+    evidence.md is append-only and written separately by _append_evidence()."""
     state["updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with open(_path(state["user_id"]), "w") as f:
-        f.write(render_md(state))
+    with open(_state_path(state["user_id"]), "w") as f:
+        json.dump(state, f, ensure_ascii=False, indent=1)
+    with open(_memory_path(state["user_id"]), "w") as f:
+        f.write(render_memory_md(state, use_llm=use_llm))
 
 
 # ---------------------------------------------------------------------------
@@ -111,14 +137,41 @@ def record_feedback(user_id, track_id, verdict, prompt=None, note=None, track_ta
                 _bump(state["vocals"], vc, 1.0)
             _scenario_update(state, tags)
 
-    # short rolling evidence log (raw layer)
-    state["evidence"].append({
-        "track_id": track_id, "verdict": verdict, "prompt": prompt,
-        "brief": _brief(tags) if tags else None, "ts": time.time()})
+    # novelty gate (only for likes): decide whether this track is worth storing as
+    # a new anchor or just reinforces an existing one — and explain why.
+    decision = None
+    if verdict == "like" and tags:
+        decision = _novelty_gate(state, track_id, tags, prompt)
+        state["last_decision"] = decision
+
+    # append-only raw truth -> evidence.md (and a rolling copy in state for views)
+    event = {"track_id": track_id, "verdict": verdict, "prompt": prompt,
+             "note": note, "brief": _brief(tags) if tags else None,
+             "decision": decision["decision"] if decision else None,
+             "reason": decision["reason"] if decision else None,
+             "ts": time.time()}
+    _append_evidence(user_id, event)
+    state["evidence"].append(event)
     state["evidence"] = state["evidence"][-50:]
 
     save(state)
     return summary(user_id, _state=state)
+
+
+def _append_evidence(user_id, event):
+    """Append one line to <uid>.evidence.md. Never modifies existing lines."""
+    p = _evidence_path(user_id)
+    new_file = not os.path.exists(p)
+    ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(event.get("ts") or time.time()))
+    em = _EMOJI.get(event["verdict"], "?")
+    tid = f"`{event['track_id']}`" if event.get("track_id") else "—"
+    pr = f" · 「{event['prompt']}」" if event.get("prompt") else ""
+    nt = f" · note: 「{event['note']}」" if event.get("note") else ""
+    line = f"- {em} {event['verdict']} · {tid}{pr}{nt} · {ts}\n"
+    with open(p, "a") as f:
+        if new_file:
+            f.write(f"# Evidence — user {user_id}  (append-only · raw truth · seed pool)\n\n")
+        f.write(line)
 
 
 def _bump(d, key, s):
@@ -139,6 +192,62 @@ def _scenario_update(state, tags):
         sc["bpm"] = sc["bpm"][-30:]
     for g in tags.get("genres") or []:
         sc["genres"][g] = sc["genres"].get(g, 0) + 1
+
+
+# ---------------------------------------------------------------------------
+# novelty gate: store-new vs reinforce, with an explainable reason
+# ---------------------------------------------------------------------------
+def _jaccard(a, b):
+    u = a | b
+    return len(a & b) / len(u) if u else 0.0
+
+
+def _novelty_gate(state, track_id, tags, prompt):
+    """Decide what to remember about a newly liked track (and explain it).
+
+    A new ANCHOR is created only when the track occupies a genuinely new *facet*
+    (genre/mood/character) region. Distinctive *texture* (rare instruments/
+    movement) does not spawn an anchor — it ENRICHES the nearest one. This keeps
+    the anchor set a small, meaningful map of the user's taste regions.
+
+    - First like -> first anchor.
+    - Redundant  -> high facet overlap AND no new distinctive facet tag
+                    -> reinforce nearest anchor (count++), absorb any new texture.
+    - Novel      -> new facet mix -> new anchor.
+    """
+    fs = salience.facet_set(tags)
+    facet_dist = [d["tag"] for d in salience.distinctive_tags(tags, dims=salience.FACET_DIMS)]
+    detail_dist = [d["tag"] for d in salience.distinctive_tags(tags, dims=salience.DETAIL_DIMS)]
+    exemplars = state.setdefault("exemplars", [])
+
+    if not exemplars:
+        exemplars.append({"track_id": track_id, "count": 1, "facets": sorted(fs),
+                          "distinctive": facet_dist, "texture": detail_dist,
+                          "novelty": 1.0, "prompt": prompt})
+        return {"decision": "store_first", "novelty": 1.0, "new_distinctive": facet_dist,
+                "reason": f"first anchor — facet: {', '.join(facet_dist) or 'baseline'}"}
+
+    max_ov, nearest = max(((_jaccard(fs, set(e["facets"])), e) for e in exemplars),
+                          key=lambda x: x[0])
+    known_facet = {t for e in exemplars for t in e.get("distinctive") or []}
+    new_facet = [t for t in facet_dist if t not in known_facet]
+    novelty = round(1 - max_ov, 2)
+
+    if max_ov >= REDUNDANT_OVERLAP and not new_facet:
+        nearest["count"] += 1
+        absorbed = [t for t in detail_dist if t not in (nearest.get("texture") or [])]
+        nearest["texture"] = (nearest.get("texture") or []) + absorbed
+        extra = f"; noted new texture: {', '.join(absorbed)}" if absorbed else ""
+        return {"decision": "reinforce", "novelty": novelty, "new_distinctive": [],
+                "reason": (f"redundant — {max_ov:.0%} facet overlap with anchor "
+                           f"`{nearest['track_id']}`; reinforced (×{nearest['count']}){extra}")}
+
+    exemplars.append({"track_id": track_id, "count": 1, "facets": sorted(fs),
+                      "distinctive": facet_dist, "texture": detail_dist,
+                      "novelty": novelty, "prompt": prompt})
+    extra = f" — new facet: {', '.join(new_facet)}" if new_facet else " — different facet mix"
+    return {"decision": "store_new", "novelty": novelty, "new_distinctive": new_facet,
+            "reason": f"new anchor (novelty {novelty:.0%}){extra}"}
 
 
 def _safe_tags(track_id):
@@ -173,6 +282,19 @@ def _avoids(state):
     return out
 
 
+def _distinctive_signature(st, n=6):
+    """Globally distinctive (high-IDF) tags the user keeps liking — what makes
+    their taste characteristic vs the catalog average."""
+    scored = []
+    for dim in CAT_DIMS:
+        for tag, cell in st["dims"][dim].items():
+            if cell["aff"] > 0.1:
+                scored.append({"dim": dim, "tag": tag,
+                               "idf": salience.idf(dim, tag), "aff": cell["aff"]})
+    scored.sort(key=lambda x: -(x["idf"] * x["aff"]))
+    return [s for s in scored if s["idf"] >= 1.0][:n]
+
+
 def summary(user_id, _state=None):
     """Structured memory summary (for GET /your-sound)."""
     st = _state or load(user_id)
@@ -188,6 +310,9 @@ def summary(user_id, _state=None):
             "likes": likes, "avoids": _avoids(st),
             "numeric": st["numeric"], "vocals": _top_pos(st["vocals"], 2),
             "scenarios": scen, "headline": _headline(st, likes),
+            "exemplars": st.get("exemplars", []),
+            "distinctive": _distinctive_signature(st),
+            "last_decision": st.get("last_decision"),
             "notes": [n["text"] for n in st["notes"]]}
 
 
@@ -201,10 +326,27 @@ def _headline(st, likes):
     return f"You lean {m} {g}, built on {inst}{f', around {bpm} BPM' if bpm else ''}."
 
 
+_EV_LINE = re.compile(r"^- \S+ (\w+) · `([^`]+)`(?: · 「([^」]*)」)?")
+
+
+def _parse_evidence(user_id):
+    """Read the append-only evidence.md back into events (the raw truth)."""
+    p = _evidence_path(user_id)
+    if not os.path.exists(p):
+        return []
+    out = []
+    for line in open(p):
+        m = _EV_LINE.match(line.rstrip("\n"))
+        if m:
+            out.append({"verdict": m.group(1), "track_id": m.group(2), "prompt": m.group(3)})
+    return out
+
+
 def seed_pool(user_id, prompt=None, limit=None):
-    """Liked track ids for similarById seeds (PRD seed pool). prompt filters."""
-    st = load(user_id)
-    ids = [e["track_id"] for e in reversed(st["evidence"])
+    """Liked track ids for similarById seeds (PRD seed pool), read from the
+    append-only evidence.md. prompt=None -> cross-session; prompt=<text> -> that
+    prompt's pool. Most-recent first, de-duplicated."""
+    ids = [e["track_id"] for e in reversed(_parse_evidence(user_id))
            if e["verdict"] == "like" and (prompt is None or e["prompt"] == prompt)]
     seen, out = set(), []
     for i in ids:
@@ -214,75 +356,101 @@ def seed_pool(user_id, prompt=None, limit=None):
 
 
 def prompt_injection(user_id):
-    """Compact taste block to prepend to the /intent system prompt."""
-    s = summary(user_id)
-    if not any(s["likes"].values()):
-        return ""
-    parts = ["KNOWN LISTENER TASTE (bias interpretation; do not override an explicit new request):",
-             "- " + s["headline"]]
-    if s["avoids"]:
-        av = ", ".join(v for vs in s["avoids"].values() for v in vs)
-        parts.append(f"- avoids: {av}")
-    for mood, sc in list(s["scenarios"].items())[:3]:
-        parts.append(f"- when {mood}: ~{sc['median_bpm']} BPM, {', '.join(sc['genres'])}")
-    return "\n".join(parts)
+    """The text /intent prepends to its system prompt = the memory.md body, read
+    verbatim (PRD: inject memory.md, don't parse). Falls back to rendering if the
+    file is missing."""
+    p = _memory_path(user_id)
+    if os.path.exists(p):
+        return open(p).read().strip()
+    return render_memory_md(load(user_id))
 
 
 # ---------------------------------------------------------------------------
-# markdown rendering (the human-facing memory artifact)
+# memory.md — natural-language profile (LLM if a key is set, else rule-based)
 # ---------------------------------------------------------------------------
-def render_md(state):
+def render_memory_md(state, use_llm=None):
+    """Render the natural-language taste profile injected into /intent.
+
+    use_llm: None -> auto (LLM iff ANTHROPIC_API_KEY set); True/False to force.
+    The LLM only *phrases* the facts the engine distilled; it never invents them.
+    """
     s = summary(state["user_id"], _state=state)
-    L = []
-    L += [f"---",
-          f"user_id: {s['user_id']}",
-          f"updated: {state.get('updated')}",
-          f"likes: {s['counts'].get('like',0)}  dislikes: {s['counts'].get('dislike',0)}  notes: {s['counts'].get('note',0)}",
-          f"---", ""]
-    L += [f"# 🎧 Taste memory — user {s['user_id']}", "",
-          f"**Your sound:** {s['headline']}", ""]
+    if not any(s["likes"].values()):
+        return f"# 🎧 Your sound — user {s['user_id']}\n\n_(No taste memory yet — like a few tracks first.)_\n"
 
-    L.append("## You like")
+    facts = _facts_block(s)
+    if use_llm is None:
+        use_llm = bool(config.ANTHROPIC_API_KEY)
+    nl = (_llm_paragraph(facts) if use_llm else None) or _rule_paragraph(s)
+
+    L = [f"# 🎧 Your sound — user {s['user_id']}", "", nl, "", "---", "", facts,
+         "", f"_(derived from evidence.md · {s['counts'].get('like',0)} likes · "
+         f"rewritten {state.get('updated')})_", ""]
+    return "\n".join(L)
+
+
+def _rule_paragraph(s):
+    """Deterministic natural-language summary (no LLM needed)."""
+    m = ", ".join(x["tag"] for x in s["likes"]["moods"][:3])
+    g = " & ".join(x["tag"] for x in s["likes"]["genres"][:2])
+    inst = ", ".join(x["tag"] for x in s["likes"]["instruments"][:3])
+    bpm = s["numeric"].get("bpm")
+    voc = s["vocals"][0]["tag"] if s["vocals"] else None
+    dist = ", ".join(d["tag"] for d in s["distinctive"][:3])
+    avoid = ", ".join(v for vs in s["avoids"].values() for v in vs)
+    out = f"You lean **{m}** {g}, built on {inst}"
+    out += f", around {bpm} BPM" if bpm else ""
+    out += f", mostly {voc}" if voc else ""
+    out += "."
+    if dist:
+        out += f" What's distinctive about your taste: **{dist}**."
+    if avoid:
+        out += f" You steer away from {avoid}."
+    if s["scenarios"]:
+        sc = "; ".join(f"{mood} ≈ {d['median_bpm']} BPM" for mood, d in list(s["scenarios"].items())[:3])
+        out += f" By mood: {sc}."
+    return out
+
+
+def _facts_block(s):
+    L = ["**Facts (grounded in Cyanite tags):**"]
     for dim in CAT_DIMS:
         items = s["likes"][dim]
         if items:
-            L.append(f"- **{dim}**: " + " · ".join(f"{x['tag']} ({x['pct']}%)" for x in items))
-    num = s["numeric"]
-    L.append(f"- **tempo/energy**: "
-             f"{('~'+str(num['bpm'])+' BPM') if num.get('bpm') else 'n/a'}"
-             f"{', valence '+str(num['valence']) if num.get('valence') is not None else ''}"
-             f"{', arousal '+str(num['arousal']) if num.get('arousal') is not None else ''}")
-    if s["vocals"]:
-        L.append("- **vocals**: " + ", ".join(x["tag"] for x in s["vocals"]))
-    L.append("")
-
+            L.append(f"- {dim}: " + ", ".join(f"{x['tag']} {x['pct']}%" for x in items[:4]))
+    if s["distinctive"]:
+        L.append("- distinctive (rare): " + ", ".join(d["tag"] for d in s["distinctive"]))
     if s["avoids"]:
-        L.append("## You avoid")
-        for dim, vs in s["avoids"].items():
-            L.append(f"- **{dim}**: " + ", ".join(vs))
-        L.append("")
-
-    if s["scenarios"]:
-        L.append("## Scenario memory")
-        for mood, sc in s["scenarios"].items():
-            L.append(f"- **{mood}** → ~{sc['median_bpm']} BPM, {', '.join(sc['genres'])} (from {sc['n']} likes)")
-        L.append("")
-
+        L.append("- avoids: " + ", ".join(v for vs in s["avoids"].values() for v in vs))
+    if s.get("exemplars"):
+        L.append(f"- anchors: {len(s['exemplars'])} taste regions kept")
     if s["notes"]:
-        L.append("## Notes from you")
-        for n in s["notes"][-8:]:
-            L.append(f"- “{n}”")
-        L.append("")
-
-    if state["evidence"]:
-        L.append("## Recent feedback")
-        emoji = {"like": "👍", "dislike": "👎", "skip": "⏭", "play": "▶", "note": "📝"}
-        for e in state["evidence"][-8:][::-1]:
-            tag = f" — {e['brief']}" if e.get("brief") else ""
-            pr = f"  _(prompt: {e['prompt']})_" if e.get("prompt") else ""
-            L.append(f"- {emoji.get(e['verdict'],'?')} `{e['track_id']}`{tag}{pr}")
-        L.append("")
-
-    L += ["<!-- machine state — do not edit -->", "```json",
-          json.dumps(state, ensure_ascii=False, indent=1), "```", ""]
+        L.append("- notes from you: " + "; ".join(f"“{n}”" for n in s["notes"][-3:]))
     return "\n".join(L)
+
+
+def _llm_paragraph(facts):
+    """Let an LLM phrase the profile in one warm paragraph. Uses ONLY the facts."""
+    if not config.ANTHROPIC_API_KEY:
+        return None
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        msg = client.messages.create(
+            model=config.LLM_MODEL, max_tokens=160,
+            system=("Write a 2-3 sentence second-person taste profile ('You ...') "
+                    "from these facts. Warm, specific, no hype. Use ONLY the given "
+                    "facts; invent nothing."),
+            messages=[{"role": "user", "content": facts}])
+        return msg.content[0].text.strip()
+    except Exception:
+        return None
+
+
+def refresh_memory(user_id, use_llm=True):
+    """Re-render memory.md (e.g. LLM-rewrite before /intent). Returns the text."""
+    state = load(user_id)
+    txt = render_memory_md(state, use_llm=use_llm)
+    with open(_memory_path(user_id), "w") as f:
+        f.write(txt)
+    return txt
