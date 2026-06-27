@@ -17,3 +17,6 @@ backend/**/.cache/
 backend/profile/memory/*.md
 backend/profile/memory/*.json
 !backend/profile/memory/.gitkeep
+
+# node
+node_modules/
