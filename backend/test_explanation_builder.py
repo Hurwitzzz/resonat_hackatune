@@ -122,6 +122,70 @@ def test_select_explanation_example_can_use_historical_when_session_source_is_be
     assert example["example_type"] == "historical_like"
 
 
+def test_build_historical_candidates_from_similar_rows_keeps_only_historical_likes():
+    evidence_md = """# evidence · demo
+
+## 反馈记录
+- 「night drive」→ liked hist_low, hist_high   (2026-06-27T20:00:00)
+"""
+    similar_rows = [
+        {"cyanite_id": "not_liked", "score": 0.99},
+        {"cyanite_id": "hist_low", "score": 0.82},
+        {"cyanite_id": "hist_high", "score": 0.91},
+    ]
+    display_by_id = {
+        "hist_high": {"title": "Old Light", "artist": "Past Self"},
+        "hist_low": {"title": "Dim Track", "artist": "Past Self"},
+    }
+
+    candidates = explanation_builder.build_historical_candidates_from_similar_rows(
+        evidence_md,
+        similar_rows,
+        display_by_id=display_by_id,
+    )
+
+    assert candidates == [
+        {
+            "track_id": "hist_high",
+            "similar_score": 0.91,
+            "selection_basis": "historical_similar_by_id_intersection",
+            "title": "Old Light",
+            "artist": "Past Self",
+        },
+        {
+            "track_id": "hist_low",
+            "similar_score": 0.82,
+            "selection_basis": "historical_similar_by_id_intersection",
+            "title": "Dim Track",
+            "artist": "Past Self",
+        },
+    ]
+
+
+def test_build_historical_candidates_from_similar_rows_supports_id_aliases_and_limit():
+    evidence_md = """# evidence · demo
+
+## 反馈记录
+- 「quiet focus」→ liked jam_1, libtr_2   (2026-06-27T21:00:00)
+"""
+    similar_rows = [
+        {"track_id": "jam_1", "score": 0.84},
+        {"id": "libtr_2", "score": 0.9},
+    ]
+
+    candidates = explanation_builder.build_historical_candidates_from_similar_rows(
+        evidence_md,
+        similar_rows,
+        limit=1,
+    )
+
+    assert candidates == [{
+        "track_id": "libtr_2",
+        "similar_score": 0.9,
+        "selection_basis": "historical_similar_by_id_intersection",
+    }]
+
+
 def test_select_explanation_example_prefers_session_source_over_historical_like():
     example = explanation_builder.select_explanation_example(
         liked_tracks=["liked_123"],

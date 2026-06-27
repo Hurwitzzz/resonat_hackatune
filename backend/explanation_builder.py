@@ -66,6 +66,33 @@ def extract_liked_track_ids_from_evidence(evidence_md: str) -> list[str]:
     return liked_ids
 
 
+def build_historical_candidates_from_similar_rows(evidence_md: str,
+                                                  similar_rows: list[dict],
+                                                  display_by_id: dict[str, dict] | None = None,
+                                                  limit: int | None = None) -> list[dict]:
+    """Convert recommended-track similarById rows into historical liked candidates."""
+    historical_ids = set(extract_liked_track_ids_from_evidence(evidence_md))
+    display_by_id = display_by_id or {}
+    candidates = []
+    for row in similar_rows:
+        track_id = _track_id_from(row)
+        score = _score_from(row)
+        if not track_id or track_id not in historical_ids or not isinstance(score, int | float):
+            continue
+        candidate = {
+            "track_id": track_id,
+            "similar_score": float(score),
+            "selection_basis": "historical_similar_by_id_intersection",
+        }
+        display = display_by_id.get(track_id, {})
+        for field in ("title", "artist"):
+            if display.get(field):
+                candidate[field] = display[field]
+        candidates.append(candidate)
+    candidates.sort(key=lambda candidate: candidate["similar_score"], reverse=True)
+    return candidates[:limit] if limit is not None else candidates
+
+
 def select_explanation_example(liked_tracks: list[str],
                                recommendation_meta: dict,
                                min_similarity: float = DEFAULT_EXAMPLE_SIMILARITY_THRESHOLD,
@@ -245,6 +272,10 @@ def _score_from(row: dict) -> float | None:
     if not isinstance(score, int | float):
         score = row.get("final_score")
     return float(score) if isinstance(score, int | float) else None
+
+
+def _track_id_from(row: dict) -> str:
+    return str(row.get("cyanite_id") or row.get("track_id") or row.get("id") or "").strip()
 
 
 def _example_label(example: dict) -> str:
