@@ -1,0 +1,13 @@
+# Secrets
+.env
+.env.*
+!.env.sample
+
+# macOS / editor / python
+.DS_Store
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# python venv
+.venv/
