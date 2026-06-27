@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import Canvas from "../components/Canvas";
-import Controls from "../components/Controls";
+import AddNoteButton from "../components/AddNoteButton";
 import NoteCard from "../components/NoteCard";
 import Slogan from "../components/Slogan";
-import Plus from "../components/icons/Plus";
 import { useNotes } from "../context/NotesContext";
 
 const GREETING = "Hey, what should today sound like?";
@@ -80,7 +79,11 @@ const StartPage = () => {
             </h1>
           )}
 
-          {/* Notes cluster — centered, wrapping, non-overlapping. */}
+          {/* Starting state: add button centered beneath the greeting. */}
+          {isEmpty && <AddNoteButton onClick={addNote} />}
+
+          {/* Notes cluster — centered, wrapping. The add button sits in the
+              next post-it's slot, not off in a sidebar. */}
           {!isEmpty && (
             <div className="flex max-w-5xl flex-wrap items-start justify-center gap-8">
               {notes.map((note, index) => (
@@ -93,28 +96,15 @@ const StartPage = () => {
                   viewTransitionName={`note-${note.id}`}
                 />
               ))}
+              <div className="flex min-h-[150px] w-80 items-center justify-center">
+                <AddNoteButton onClick={addNote} />
+              </div>
             </div>
-          )}
-
-          {/* Starting state: add button centered beneath the greeting. */}
-          {isEmpty && (
-            <button
-              type="button"
-              onClick={addNote}
-              aria-label="Add a note"
-              title="Add a note"
-              className="flex h-16 w-16 -rotate-3 items-center justify-center rounded-full bg-[var(--yellow)] text-[var(--ink)] shadow-[var(--shadow-block)] transition-transform duration-150 hover:rotate-0 hover:scale-105"
-            >
-              <Plus size={30} />
-            </button>
           )}
         </div>
       </Canvas>
 
       <Slogan />
-
-      {/* Once notes exist, the add button lives in the left sidebar. */}
-      {!isEmpty && <Controls onAdd={addNote} />}
 
       {hasValidPostIt && (
         <button
