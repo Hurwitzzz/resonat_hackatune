@@ -4,6 +4,7 @@ This is owner-specific context for agents working directly with Hewga. It is not
 
 For the overall product flow, read `PRD-night.md`.
 For team responsibility boundaries, read `docs/team-responsibilities.md`.
+For Hewga's implementation sequence, read `docs/agent-context/hewga-implementation-plan.md`.
 
 ## Owned Areas To Protect
 
