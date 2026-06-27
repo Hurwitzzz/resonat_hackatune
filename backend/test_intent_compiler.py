@@ -96,3 +96,55 @@ def test_openai_response_is_requested_as_query_card_json(monkeypatch):
     assert "do not restate the prompt" in user_input
     assert card["free_text_query"].startswith("restrained low energy")
     assert card["soft_targets"][0]["weight"] == 0.8
+
+
+def test_openai_paraphrase_interpretation_is_replaced_with_analysis(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            output_text = json.dumps({
+                "interpretation_plain": (
+                    "Calm, cinematic late-night instrumental with soft piano or warm acoustic "
+                    "guitar, gentle rhythm, low energy, slightly hopeful."
+                ),
+                "free_text_query": (
+                    "calm cinematic night focus background low energy instrumental piano "
+                    "acousticGuitar hopeful warm"
+                ),
+                "soft_targets": [
+                    {"dim": "mood", "value": "calm", "weight": 0.9},
+                    {"dim": "musicFor", "value": "focus", "weight": 0.8},
+                    {"dim": "energy", "value": "low energy", "weight": 0.8},
+                ],
+                "negatives": [{"dim": "vocals", "value": "vocal"}],
+            })
+            return {"output": [{"content": [{"type": "output_text", "text": output_text}]}]}
+
+    def fake_post(url, *, headers, json, timeout):
+        captured["json"] = json
+        return FakeResponse()
+
+    monkeypatch.setattr(intent_compiler.requests, "post", fake_post)
+
+    card = intent_compiler.compile_query_card(
+        [{
+            "role": "initial_prompt",
+            "text": (
+                "Find me something calm and cinematic for working late at night. "
+                "I want soft piano or warm acoustic guitar, low energy, gentle rhythm, "
+                "mostly instrumental, and a slightly hopeful mood."
+            ),
+        }],
+        "User often likes warm acoustic textures and reflective background music.",
+    )
+
+    assert captured["json"]["instructions"]
+    assert not card["interpretation_plain"].startswith("Calm, cinematic")
+    assert "background" in card["interpretation_plain"]
+    assert "low distraction" in card["interpretation_plain"]
+    assert card["free_text_query"].startswith("calm cinematic night")

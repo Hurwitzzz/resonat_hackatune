@@ -135,7 +135,8 @@ def _query_card_from_openai(posts: list[dict], profile_md: str) -> dict:
         timeout=config.OPENAI_TIMEOUT,
     )
     response.raise_for_status()
-    return _normalize_query_card(json.loads(_extract_output_text(response.json())))
+    card = _normalize_query_card(json.loads(_extract_output_text(response.json())))
+    return _finalize_query_card(card, posts, profile_md)
 
 
 def _build_user_prompt(posts: list[dict], profile_md: str) -> str:
@@ -167,6 +168,55 @@ def _fallback_query_card(posts: list[dict], profile_md: str) -> dict:
         "soft_targets": _fallback_soft_targets(traits),
         "negatives": _fallback_negatives(query),
     }
+
+
+def _finalize_query_card(card: dict, posts: list[dict], profile_md: str) -> dict:
+    """Keep the search query from the LLM, but force the UI explanation to be analytical."""
+    request_text = "; ".join(p["text"] for p in _clean_posts(posts))
+    if _looks_like_prompt_paraphrase(card.get("interpretation_plain", ""), request_text):
+        traits = _traits_from_card_or_text(card, request_text, profile_md)
+        card["interpretation_plain"] = _fallback_interpretation(request_text, profile_md, traits)
+    return card
+
+
+def _looks_like_prompt_paraphrase(interpretation: str, request_text: str) -> bool:
+    text = interpretation.strip()
+    if len(text.split()) < 18:
+        return True
+    request_words = _content_words(request_text)
+    if not request_words:
+        return False
+    interpretation_words = set(_content_words(text))
+    overlap = sum(1 for word in request_words if word in interpretation_words) / len(request_words)
+    analysis_markers = {
+        "because", "translating", "translated", "so", "therefore", "means",
+        "suggests", "prioritize", "down-rank", "distraction", "profile", "nudges",
+    }
+    has_analysis = any(marker in text.lower() for marker in analysis_markers)
+    return overlap >= 0.45 and not has_analysis
+
+
+def _content_words(text: str) -> list[str]:
+    stop = {
+        "the", "and", "or", "a", "an", "to", "for", "with", "me", "i", "want",
+        "something", "find", "mostly", "slightly", "this", "that", "your", "my",
+        "into", "music", "sound", "track", "tracks",
+    }
+    return [
+        word
+        for word in re.findall(r"[a-zA-Z][a-zA-Z-]{2,}", text.lower())
+        if word not in stop
+    ]
+
+
+def _traits_from_card_or_text(card: dict, request_text: str, profile_md: str) -> list[str]:
+    traits = [
+        str(target.get("value", "")).strip()
+        for target in card.get("soft_targets", [])
+        if isinstance(target, dict) and str(target.get("value", "")).strip()
+    ]
+    traits.extend(_infer_cyanite_traits(f"{request_text}; {card.get('free_text_query', '')}", profile_md))
+    return list(dict.fromkeys(traits))
 
 
 def _clean_posts(posts: list[dict]) -> list[dict]:
