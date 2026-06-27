@@ -11,3 +11,8 @@ __pycache__/
 
 # python venv
 .venv/
+
+# backend caches & runtime memory (do not commit Cyanite model outputs per challenge license)
+backend/**/.cache/
+backend/profile/memories/*.md
+!backend/profile/memories/.gitkeep
