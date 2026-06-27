@@ -121,6 +121,60 @@ def test_pool_reused_when_liked_set_unchanged(monkeypatch, tmp_path):
     assert calls["similar"] == 1  # liked 集合没变 → 候选池复用，不重复搜
 
 
+def test_explain_uses_historical_similar_intersection(monkeypatch, tmp_path):
+    sid, calls = _confirmed("u7", monkeypatch, tmp_path)
+    (tmp_path / "u7.evidence.md").write_text(
+        "# evidence · u7\n\n## 反馈记录\n- 「old focus」→ liked hist_1   (2026-06-27T20:00:00)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "u7.memory.md").write_text(
+        "# memory · u7\n\nThe listener likes quiet, restrained focus tracks.\n",
+        encoding="utf-8",
+    )
+
+    def fake_similar(cid, limit=20):
+        calls["similar"] += 1
+        assert cid == "libtr_0"
+        return [{"cyanite_id": "hist_1", "score": 0.91}]
+
+    captured = {}
+
+    def fake_build_explanation(profile_md, query_card, liked_track_tags, recommended_track_tags,
+                               recommendation_meta, explanation_example=None, recommended_track=None):
+        captured.update({
+            "profile_md": profile_md,
+            "query_card": query_card,
+            "liked_track_tags": liked_track_tags,
+            "recommended_track_tags": recommended_track_tags,
+            "recommendation_meta": recommendation_meta,
+            "explanation_example": explanation_example,
+            "recommended_track": recommended_track,
+        })
+        return {"why_text": "Because it connects to a previous liked track.", "evidence": []}
+
+    monkeypatch.setattr(orch.cyanite, "find_similar", fake_similar)
+    monkeypatch.setattr(orch.cyanite, "model_tags", lambda cid, models: {"track": cid, "models": models})
+    monkeypatch.setattr(orch.explanation_builder, "build_explanation", fake_build_explanation)
+
+    body = client.post("/explain", json={"session_id": sid, "track_id": "libtr_0"}).json()
+
+    assert body["why_text"].startswith("Because")
+    assert calls["similar"] == 1
+    assert captured["profile_md"].startswith("# memory")
+    assert captured["query_card"]["free_text_query"] == "test intent"
+    assert captured["recommended_track_tags"]["track"] == "libtr_0"
+    assert captured["liked_track_tags"]["track"] == "hist_1"
+    assert captured["recommended_track"]["cyanite_id"] == "libtr_0"
+    assert captured["explanation_example"] == {
+        "track_id": "hist_1",
+        "example_type": "historical_like",
+        "similar_score": 0.91,
+        "selection_basis": "historical_similarity",
+        "title": "T",
+        "artist": "A",
+    }
+
+
 def test_unknown_session_404(monkeypatch, tmp_path):
     _fake_seams(monkeypatch, tmp_path)
     assert client.post("/intent/confirm", json={"session_id": "nope"}).status_code == 404

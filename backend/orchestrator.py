@@ -12,6 +12,7 @@ import uuid
 
 import config
 import cyanite
+import explanation_builder
 import intent_compiler
 import memory
 import rerank
@@ -68,6 +69,13 @@ def _final_prompt(s: dict) -> str:
 
 def _visible_ids(s: dict) -> set[str]:
     return {c["cyanite_id"] for c in s["visible_cards"]}
+
+
+def _visible_card(s: dict, cyanite_id: str) -> dict:
+    for card in s["visible_cards"]:
+        if card["cyanite_id"] == cyanite_id or card["track_id"] == cyanite_id:
+            return card
+    raise SessionNotFound(cyanite_id)
 
 
 def _expand_pool(s: dict) -> None:
@@ -169,3 +177,42 @@ def feedback(session_id: str, track_id: str, verdict: str) -> dict:
 def your_sound(user_id: str) -> str:
     """⑧ 记忆摘要，演'越用越准'。"""
     return memory.read_memory(user_id)
+
+
+def explain(session_id: str, track_id: str) -> dict:
+    """生成 Why this track：当前意图 + 用户画像 + Cyanite tags + 可选历史相似例子。"""
+    s = _get(session_id)
+    card = _visible_card(s, track_id)
+    cyanite_id = card["cyanite_id"]
+    profile_md = memory.read_memory(s["user_id"])
+    evidence_md = memory.read_evidence(s["user_id"])
+    recommended_tags = cyanite.model_tags(cyanite_id, config.EXPLAIN_TAG_MODELS)
+    similar_rows = cyanite.find_similar(cyanite_id, limit=config.EXPLAIN_SIMILAR_LIMIT)
+    display_by_id = {row["cyanite_id"]: cyanite.display(row["cyanite_id"]) for row in similar_rows}
+    historical_candidates = explanation_builder.build_historical_candidates_from_similar_rows(
+        evidence_md,
+        similar_rows,
+        display_by_id=display_by_id,
+    )
+    recommendation_meta = {
+        "source": card.get("source"),
+        "score": card.get("score"),
+        "ranking_basis": "visible_card_score",
+    }
+    explanation_example = explanation_builder.select_explanation_example(
+        s["liked_tracks"],
+        recommendation_meta,
+        historical_candidates=historical_candidates,
+    )
+    liked_tags = {}
+    if explanation_example:
+        liked_tags = cyanite.model_tags(explanation_example["track_id"], config.EXPLAIN_TAG_MODELS)
+    return explanation_builder.build_explanation(
+        profile_md,
+        s["query_card"],
+        liked_tags,
+        recommended_tags,
+        recommendation_meta,
+        explanation_example,
+        cyanite.display(cyanite_id),
+    )

@@ -43,6 +43,11 @@ class FeedbackIn(BaseModel):
     verdict: str  # "like" | "dislike"
 
 
+class ExplainIn(BaseModel):
+    session_id: str
+    track_id: str
+
+
 # ─────────── 响应裁剪（只把前端要的字段吐出去）───────────
 def _intent_view(s: dict) -> dict:
     return {"session_id": s["id"], "whiteboard_posts": s["whiteboard_posts"],
@@ -88,6 +93,11 @@ def confirm(body: ConfirmIn):
 @app.post("/feedback")
 def feedback(body: FeedbackIn):
     return _cards_view(_guard(orchestrator.feedback, body.session_id, body.track_id, body.verdict))
+
+
+@app.post("/explain")
+def explain(body: ExplainIn):
+    return _guard(orchestrator.explain, body.session_id, body.track_id)
 
 
 @app.get("/your-sound")

@@ -24,6 +24,15 @@ OPENAI_TIMEOUT = int(os.environ.get("OPENAI_TIMEOUT", "20"))
 VISIBLE_N = 5        # 推荐列表一次展示几首
 SEARCH_LIMIT = 20    # freeText 召回上限
 SIMILAR_LIMIT = 20   # like 后 similarById 召回上限
+EXPLAIN_SIMILAR_LIMIT = 50
+EXPLAIN_TAG_MODELS = [
+    "MainGenreV2",
+    "MoodSimpleV2",
+    "InstrumentsV2",
+    "BpmV2",
+    "VocalsV2",
+    "AutoDescriptionV2",
+]
 
 # --- 薄重排权重 · 护栏: W_PRIMARY > W_SOFT + W_NEG（音频/语义分必须主导）---
 W_PRIMARY = 1.0

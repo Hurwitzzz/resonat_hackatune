@@ -14,15 +14,6 @@ import cyanite
 import explanation_builder
 
 
-MODELS = [
-    "MainGenreV2",
-    "MoodSimpleV2",
-    "InstrumentsV2",
-    "BpmV2",
-    "VocalsV2",
-    "AutoDescriptionV2",
-]
-
 LIKED_ID = "libtr_01KVX1J122H6RS7K1F"
 RECOMMENDED_ID = "libtr_01KVX1J1350XG8J4PG"
 
@@ -36,8 +27,8 @@ def main() -> None:
         return
 
     try:
-        liked_tags = cyanite.model_tags(LIKED_ID, MODELS)
-        recommended_tags = cyanite.model_tags(RECOMMENDED_ID, MODELS)
+        liked_tags = cyanite.model_tags(LIKED_ID, config.EXPLAIN_TAG_MODELS)
+        recommended_tags = cyanite.model_tags(RECOMMENDED_ID, config.EXPLAIN_TAG_MODELS)
     except requests.HTTPError as e:
         status = e.response.status_code if e.response is not None else "unknown"
         print(f"Cyanite 请求失败：HTTP {status}。请检查 CYANITE_API_KEY / 账号权限 / track id。")
