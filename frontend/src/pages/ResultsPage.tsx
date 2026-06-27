@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import GrainientBackground from "../components/GrainientBackground";
@@ -7,12 +7,32 @@ import PlaylistFan from "../components/PlaylistFan";
 import Stack from "../components/Stack";
 import Plus from "../components/icons/Plus";
 import { useNotes } from "../context/NotesContext";
+import { SAMPLE_TRACKS, trackUrl, type SampleTrack } from "../sampleTracks";
+import type { RecommendationCard } from "../api";
 
-// Temporary static playlist title — will come from the backend later.
-const PLAYLIST_TITLE = "Summer Relaxation: Cooling Vibes with Harry Styles and Friends";
+const displayTitle = (card: RecommendationCard) =>
+  card.title || card.track_id || card.cyanite_id;
+
+const displayArtist = (card: RecommendationCard) =>
+  card.artist || (card.source === "similar" ? "Cyanite similar match" : "Cyanite prompt match");
+
+const toTrack = (card: RecommendationCard, index: number): SampleTrack => ({
+  id: card.cyanite_id,
+  title: displayTitle(card),
+  artist: displayArtist(card),
+  url: card.track_id ? trackUrl(card.track_id) : "",
+  cover: SAMPLE_TRACKS[index % SAMPLE_TRACKS.length].cover,
+});
 
 const ResultsPage = () => {
-  const { notes } = useNotes();
+  const {
+    notes,
+    explanation,
+    cards,
+    sendFeedback,
+    explainTrack,
+    explanationsByTrackId,
+  } = useNotes();
   const [isLeaving, setIsLeaving] = useState(false);
   const leaveTimer = useRef<number | null>(null);
   const navigate = useNavigate();
@@ -39,6 +59,16 @@ const ResultsPage = () => {
       flushSync(() => navigate("/"));
     });
   };
+
+  const tracks = useMemo(() => cards.map(toTrack), [cards]);
+
+  useEffect(() => {
+    for (const track of tracks) {
+      if (!explanationsByTrackId[track.id]) {
+        void explainTrack(track.id).catch(() => undefined);
+      }
+    }
+  }, [explainTrack, explanationsByTrackId, tracks]);
 
   return (
     <main
@@ -94,11 +124,25 @@ const ResultsPage = () => {
         </h1>
 
         <p className="font-serif mt-6 max-w-3xl text-[32px] italic leading-[1.2] text-[var(--yellow)]">
-          {PLAYLIST_TITLE}
+          {explanation || "Your confirmed sound brief is ready."}
         </p>
 
         <div className="mt-10">
-          <PlaylistFan />
+          {tracks.length > 0 ? (
+            <PlaylistFan
+              tracks={tracks}
+              onLike={(track) => sendFeedback(track.id, "like")}
+              onDismiss={(track) => sendFeedback(track.id, "dislike")}
+              onExplain={async (track) => {
+                const result = await explainTrack(track.id);
+                return result.why_text;
+              }}
+            />
+          ) : (
+            <p className="font-serif text-[24px] italic text-[var(--paper)] opacity-80">
+              No recommendations loaded yet. Steer back and find your sound again.
+            </p>
+          )}
         </div>
       </section>
     </main>

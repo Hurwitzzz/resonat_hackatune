@@ -10,7 +10,15 @@ import { useNotes } from "../context/NotesContext";
 const GREETING = "Hey, what should today sound like?";
 
 const StartPage = () => {
-  const { notes, explanation, addNote, updateNote, finishEditing } = useNotes();
+  const {
+    notes,
+    explanation,
+    addNote,
+    updateNote,
+    finishEditing,
+    confirmSound,
+    isLoadingCards,
+  } = useNotes();
   const [toast, setToast] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const leaveTimer = useRef<number | null>(null);
@@ -33,9 +41,14 @@ const StartPage = () => {
     [],
   );
 
-  const handleFindMySound = () => {
+  const handleFindMySound = async () => {
     if (!hasValidPostIt) {
       showToast("Add a note first to describe the music you want.");
+      return;
+    }
+    const hasCards = await confirmSound();
+    if (!hasCards) {
+      showToast("I couldn't find tracks yet. Try again in a moment.");
       return;
     }
     if (!document.startViewTransition) {
@@ -110,10 +123,10 @@ const StartPage = () => {
         <button
           type="button"
           onClick={handleFindMySound}
-          disabled={isLeaving}
+          disabled={isLeaving || isLoadingCards}
           className="font-display find-sound-button fixed bottom-6 right-6 z-[10000] -rotate-3 rounded-full bg-[var(--yellow)] px-6 py-3 text-[16px] font-bold uppercase leading-[1.4] text-[var(--ink)] shadow-[var(--shadow-block)] transition duration-150 hover:rotate-0 hover:bg-[var(--red)] hover:text-[var(--paper)] disabled:cursor-default"
         >
-          Find my sound
+          {isLoadingCards ? "Finding..." : "Find my sound"}
         </button>
       )}
 

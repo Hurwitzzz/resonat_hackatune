@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import MusicCard from "./MusicCard";
 import TrackReasonModal from "./TrackReasonModal";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
 import { SAMPLE_TRACKS, type SampleTrack } from "../sampleTracks";
 
-// Fan geometry per slot: horizontal offset, vertical drop, rotation, resting
-// scale and z-index. The middle slot is the default "chosen" card.
 const SLOTS = [
   { x: -312, y: 58, rot: -16, z: 8 },
   { x: -156, y: 26, rot: -8, z: 14 },
@@ -29,21 +27,35 @@ interface FanCard {
   track: SampleTrack;
 }
 
-const PlaylistFan = () => {
-  const [cards, setCards] = useState<(FanCard | null)[]>(() =>
-    SLOTS.map((_, i) => ({ instanceId: i, track: SAMPLE_TRACKS[i] })),
-  );
+interface PlaylistFanProps {
+  tracks?: SampleTrack[];
+  onLike?: (track: SampleTrack) => Promise<void> | void;
+  onDismiss?: (track: SampleTrack) => Promise<void> | void;
+  onExplain?: (track: SampleTrack) => Promise<string>;
+}
+
+const PlaylistFan = ({
+  tracks = SAMPLE_TRACKS.slice(0, SLOTS.length),
+  onLike,
+  onDismiss,
+  onExplain,
+}: PlaylistFanProps) => {
+  const [cards, setCards] = useState<(FanCard | null)[]>([]);
   const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<SampleTrack | null>(null);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [isReasonLoading, setIsReasonLoading] = useState(false);
   const [fanScale, setFanScale] = useState(1);
 
-  // Rotating pointer into the track pool + a monotonic key for AnimatePresence.
-  const next = useRef({ trackIdx: SLOTS.length, instanceId: SLOTS.length });
+  const nextInstanceId = useRef(0);
   const fanRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<number | null>(null);
   const replaceTimers = useRef<number[]>([]);
 
-  const { playingId, play, stop } = useAudioPlayer(SAMPLE_TRACKS, PRELOAD_ORDER);
+  const visibleTracks = cards
+    .map((card) => card?.track)
+    .filter((track): track is SampleTrack => Boolean(track));
+  const { playingId, play, stop } = useAudioPlayer(visibleTracks, PRELOAD_ORDER);
 
   const activeIndex = hovered ?? CENTER_SLOT;
 
@@ -63,6 +75,19 @@ const PlaylistFan = () => {
     },
     [],
   );
+
+  useEffect(() => {
+    setCards(
+      SLOTS.map((_, i) =>
+        tracks[i]
+          ? {
+              instanceId: nextInstanceId.current++,
+              track: tracks[i],
+            }
+          : null,
+      ),
+    );
+  }, [tracks]);
 
   useEffect(() => {
     const element = fanRef.current;
@@ -89,13 +114,6 @@ const PlaylistFan = () => {
     };
   }, []);
 
-  const handleVote = useCallback(
-    (track: SampleTrack, value: "like" | null | "dislike") =>
-      console.log("vote:", track.title, value),
-    [],
-  );
-
-  // Hover-to-play, debounced so a quick pass-over doesn't fire a request.
   const handleEnter = (slot: number, track: SampleTrack) => {
     setHovered(slot);
     clearHoverTimer();
@@ -111,23 +129,7 @@ const PlaylistFan = () => {
     stop();
   };
 
-  const chooseNextTrack = (visible: string[]) => {
-    let chosen = SAMPLE_TRACKS[next.current.trackIdx % SAMPLE_TRACKS.length];
-    for (let step = 0; step < SAMPLE_TRACKS.length; step++) {
-      const candidate =
-        SAMPLE_TRACKS[next.current.trackIdx % SAMPLE_TRACKS.length];
-      next.current.trackIdx += 1;
-      if (!visible.includes(candidate.id)) {
-        chosen = candidate;
-        break;
-      }
-    }
-    return chosen;
-  };
-
-  // Dismiss first, then slot in a fresh track after the exit motion has room.
   const dismiss = (slotIndex: number, track: SampleTrack) => {
-    handleVote(track, "dislike");
     setHovered(null);
     clearHoverTimer();
     stop();
@@ -139,20 +141,23 @@ const PlaylistFan = () => {
 
     const timer = window.setTimeout(() => {
       replaceTimers.current = replaceTimers.current.filter((id) => id !== timer);
-      setCards((prev) => {
-        const visible = prev
-          .map((c) => c?.track.id)
-          .filter((id): id is string => Boolean(id));
-        const chosen = chooseNextTrack(visible);
-        const copy = prev.slice();
-        copy[slotIndex] = {
-          instanceId: next.current.instanceId++,
-          track: chosen,
-        };
-        return copy;
-      });
+      void onDismiss?.(track);
     }, REPLACE_CARD_DELAY_MS);
     replaceTimers.current.push(timer);
+  };
+
+  const openTrack = (track: SampleTrack) => {
+    setSelected(track);
+    setSelectedReason("");
+    setIsReasonLoading(true);
+    void onExplain?.(track)
+      .then((reason) => setSelectedReason(reason))
+      .catch(() =>
+        setSelectedReason(
+          "The detailed explanation is still loading. This track came from your confirmed sound brief and Cyanite audio matching.",
+        ),
+      )
+      .finally(() => setIsReasonLoading(false));
   };
 
   return (
@@ -212,10 +217,10 @@ const PlaylistFan = () => {
                       artist={card.track.artist}
                       cover={card.track.cover}
                       isPlaying={playingId === card.track.id}
-                      onOpen={() => setSelected(card.track)}
-                      onLike={(liked) =>
-                        handleVote(card.track, liked ? "like" : null)
-                      }
+                      onOpen={() => openTrack(card.track)}
+                      onLike={(liked) => {
+                        if (liked) void onLike?.(card.track);
+                      }}
                       onDismiss={() => dismiss(i, card.track)}
                     />
                   </motion.div>
@@ -233,6 +238,8 @@ const PlaylistFan = () => {
             artist: selected.artist,
             cover: selected.cover,
           }}
+          reasonText={selectedReason}
+          isLoading={isReasonLoading}
           onClose={() => setSelected(null)}
         />
       )}

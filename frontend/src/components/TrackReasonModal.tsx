@@ -4,22 +4,28 @@ import heroArt from "../assets/hero.png";
 const REASON_TEXT =
   "This track found you because your sound brief points toward something warm, unhurried, and emotionally close. The recommendation balances soft rhythm, late-night texture, and a gentle lift so the song feels personal without pulling you out of the mood you described.";
 
-const REASON_TOKENS = REASON_TEXT.match(/\S+\s*/g) ?? [];
-
 interface TrackReasonModalProps {
   track: MusicCardsTrack;
+  reasonText?: string;
+  isLoading?: boolean;
   onClose: () => void;
 }
 
-const TrackReasonModal = ({ track, onClose }: TrackReasonModalProps) => {
+const TrackReasonModal = ({
+  track,
+  reasonText = REASON_TEXT,
+  isLoading = false,
+  onClose,
+}: TrackReasonModalProps) => {
   const [visibleTokens, setVisibleTokens] = useState(0);
-  const visibleText = REASON_TOKENS.slice(0, visibleTokens).join("");
+  const tokens = (isLoading ? "Finding the musical evidence..." : reasonText).match(/\S+\s*/g) ?? [];
+  const visibleText = tokens.slice(0, visibleTokens).join("");
 
   useEffect(() => {
     setVisibleTokens(0);
     const timer = window.setInterval(() => {
       setVisibleTokens((count) => {
-        if (count >= REASON_TOKENS.length) {
+        if (count >= tokens.length) {
           window.clearInterval(timer);
           return count;
         }
@@ -28,7 +34,7 @@ const TrackReasonModal = ({ track, onClose }: TrackReasonModalProps) => {
     }, 42);
 
     return () => window.clearInterval(timer);
-  }, [track]);
+  }, [track, tokens.length]);
 
   return (
     <div
@@ -62,7 +68,7 @@ const TrackReasonModal = ({ track, onClose }: TrackReasonModalProps) => {
           </h2>
           <p className="font-serif mt-6 min-h-40 text-[18px] leading-[1.6] text-[var(--ink)]">
             {visibleText}
-            {visibleTokens < REASON_TOKENS.length && (
+            {visibleTokens < tokens.length && (
               <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-sm bg-[var(--blue)] align-middle" />
             )}
           </p>

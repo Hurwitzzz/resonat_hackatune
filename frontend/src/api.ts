@@ -13,6 +13,23 @@ export type IntentResponse = {
   whiteboard_posts: unknown[];
   query_card: QueryCard;
 };
+export type RecommendationCard = {
+  track_id: string;
+  cyanite_id: string;
+  title: string;
+  artist: string;
+  source: string;
+  score: number;
+  why?: string;
+};
+export type CardsResponse = {
+  cards: RecommendationCard[];
+  candidate_pool_size: number;
+};
+export type ExplanationResponse = {
+  why_text: string;
+  evidence: { source: string; detail: string }[];
+};
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(BASE + path, {
@@ -24,16 +41,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return r.json();
 }
 
-export const intent = async (text: string, user_id = "demo") => {
-  const result = await post<IntentResponse>("/intent", { text, user_id });
-  return result.query_card;
-};
+export const intent = (text: string, user_id = "demo") =>
+  post<IntentResponse>("/intent", { text, user_id });
 
-export const confirm = (card: QueryCard) =>
-  post<{ session_id: string; cards: unknown[] }>("/intent/confirm", card);
+export const confirm = (session_id: string) =>
+  post<CardsResponse>("/intent/confirm", { session_id });
 
 export const feedback = (session_id: string, track_id: string, verdict: "like" | "dislike") =>
-  post<{ cards: unknown[] }>("/feedback", { session_id, track_id, verdict });
+  post<CardsResponse>("/feedback", { session_id, track_id, verdict });
+
+export const explain = (session_id: string, track_id: string) =>
+  post<ExplanationResponse>("/explain", { session_id, track_id });
 
 export const yourSound = (user_id = "demo") =>
   fetch(`${BASE}/your-sound?user_id=${user_id}`).then((r) => r.json());
