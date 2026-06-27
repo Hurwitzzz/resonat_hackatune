@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import heroArt from "../assets/hero.png";
 import MusicCard from "./MusicCard";
+import { useAudioPlayer } from "../hooks/useAudioPlayer";
+import { SAMPLE_TRACKS } from "../sampleTracks";
 
 // Fan geometry per slot: horizontal offset, vertical drop, rotation, resting
 // scale and z-index. The middle slot is the default "chosen" card.
@@ -9,6 +11,11 @@ const FAN = [
   { id: "middle", x: 0, y: 0, rot: 0, scale: 1, z: 20 },
   { id: "right", x: 170, y: 28, rot: 10, scale: 0.92, z: 10 },
 ];
+
+// Map the three fan slots to sample tracks; preload the middle (default) first.
+const FAN_TRACKS = SAMPLE_TRACKS.slice(0, 3);
+const PRELOAD_ORDER = [1, 0, 2];
+const HOVER_PLAY_DELAY_MS = 180;
 
 const REASON_TEXT =
   "This track found you because your sound brief points toward something warm, unhurried, and emotionally close. The recommendation balances soft rhythm, late-night texture, and a gentle lift so the song feels personal without pulling you out of the mood you described.";
@@ -81,8 +88,40 @@ const TrackReasonModal = ({ trackIndex, onClose }: TrackReasonModalProps) => {
 const PlaylistFan = () => {
   const [hovered, setHovered] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<number | null>(null);
+  const { playingId, unavailable, play, stop } = useAudioPlayer(
+    FAN_TRACKS,
+    PRELOAD_ORDER,
+  );
+  const hoverTimer = useRef<number | null>(null);
   // Default chosen card is the middle one; hovering overrides it.
   const activeIndex = hovered ?? 1;
+
+  const clearHoverTimer = () => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  };
+
+  // Hover-to-play, debounced so a quick pass-over doesn't fire a request.
+  const handleEnter = (i: number) => {
+    setHovered(i);
+    clearHoverTimer();
+    const track = FAN_TRACKS[i];
+    if (!track) return;
+    hoverTimer.current = window.setTimeout(
+      () => play(track.id),
+      HOVER_PLAY_DELAY_MS,
+    );
+  };
+
+  const handleLeave = () => {
+    setHovered(null);
+    clearHoverTimer();
+    stop();
+  };
+
+  useEffect(() => clearHoverTimer, []);
 
   return (
     <div className="relative h-80 w-full">
@@ -90,11 +129,12 @@ const PlaylistFan = () => {
         const isActive = i === activeIndex;
         const lift = isActive ? 18 : 0;
         const scale = isActive ? slot.scale * 1.12 : slot.scale;
+        const track = FAN_TRACKS[i];
         return (
           <div
             key={slot.id}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
+            onMouseEnter={() => handleEnter(i)}
+            onMouseLeave={handleLeave}
             className="absolute left-1/2 top-1/2 h-56 w-72 cursor-pointer transition-all duration-150 ease-out"
             style={{
               transform: `translate(-50%, -50%) translateX(${slot.x}px) translateY(${slot.y - lift}px) rotate(${slot.rot}deg) scale(${scale})`,
@@ -103,7 +143,14 @@ const PlaylistFan = () => {
               opacity: isActive ? 1 : 0.5,
             }}
           >
-            <MusicCard active={isActive} onOpen={() => setSelectedTrack(i)} />
+            <MusicCard
+              active={isActive}
+              onOpen={() => setSelectedTrack(i)}
+              title={track?.title}
+              artist={track?.artist}
+              isPlaying={track ? playingId === track.id : false}
+              unavailable={track ? unavailable.has(track.id) : false}
+            />
           </div>
         );
       })}

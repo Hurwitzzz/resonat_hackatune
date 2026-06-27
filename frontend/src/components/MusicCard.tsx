@@ -8,11 +8,35 @@ interface MusicCardProps {
   // The card is the chosen/front one in the fan — show its feedback controls.
   active?: boolean;
   onOpen?: () => void;
+  title?: string;
+  artist?: string;
+  isPlaying?: boolean;
+  unavailable?: boolean;
 }
 
-// Blank placeholder track card. Will later host a real music widget and map the
-// thumbs to feedback(session_id, track_id, "like"|"dislike") from api.ts.
-const MusicCard = ({ active = false, onOpen }: MusicCardProps) => {
+// Animated "now playing" equalizer cue (there is no play/pause button).
+const NowPlaying = () => (
+  <span aria-label="Now playing" className="flex items-end gap-[3px]">
+    {[0, 1, 2].map((bar) => (
+      <span
+        key={bar}
+        className="w-[3px] animate-bounce rounded-sm bg-[var(--ink)]"
+        style={{ height: 8 + bar * 4, animationDelay: `${bar * 120}ms` }}
+      />
+    ))}
+  </span>
+);
+
+// Track card with hover-driven playback. Will later host a real music widget
+// and map the thumbs to feedback(session_id, track_id, "like"|"dislike").
+const MusicCard = ({
+  active = false,
+  onOpen,
+  title,
+  artist,
+  isPlaying = false,
+  unavailable = false,
+}: MusicCardProps) => {
   const [verdict, setVerdict] = useState<Verdict>(null);
 
   // Clicking the active verdict again clears it back to neutral.
@@ -42,10 +66,21 @@ const MusicCard = ({ active = false, onOpen }: MusicCardProps) => {
       aria-label="Open track explanation"
       className="flex h-full w-full flex-col rounded-[10px] bg-[var(--paper)] p-4 text-[var(--ink)] shadow-[var(--shadow-block)] outline-none transition duration-150 hover:-translate-y-0.5"
     >
-      <div className="flex flex-1 items-center justify-center">
-        <span className="font-serif text-center text-[28px] italic leading-[1.1] text-[var(--ink)]">
-          playing... music widget
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+        {isPlaying && !unavailable && <NowPlaying />}
+        <span className="font-serif text-[26px] italic leading-[1.1] text-[var(--ink)]">
+          {title ?? "playing... music widget"}
         </span>
+        {artist && (
+          <span className="font-display text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink)] opacity-60">
+            {artist}
+          </span>
+        )}
+        {unavailable && (
+          <span className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--red)]">
+            unavailable
+          </span>
+        )}
       </div>
 
       {active && (
