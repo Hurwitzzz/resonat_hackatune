@@ -16,6 +16,7 @@ import explanation_builder
 import intent_compiler
 import memory
 import rerank
+import user_profiles
 
 # 会话存储：内存 dict
 SESSIONS: dict[str, dict] = {}
@@ -186,6 +187,7 @@ def explain(session_id: str, track_id: str) -> dict:
     cyanite_id = card["cyanite_id"]
     profile_md = memory.read_memory(s["user_id"])
     evidence_md = memory.read_evidence(s["user_id"])
+    provided_likes = user_profiles.liked_cyanite_ids(s["user_id"])
     recommended_tags = cyanite.model_tags(cyanite_id, config.EXPLAIN_TAG_MODELS)
     similar_rows = cyanite.find_similar(cyanite_id, limit=config.EXPLAIN_SIMILAR_LIMIT)
     display_by_id = {row["cyanite_id"]: cyanite.display(row["cyanite_id"]) for row in similar_rows}
@@ -193,6 +195,7 @@ def explain(session_id: str, track_id: str) -> dict:
         evidence_md,
         similar_rows,
         display_by_id=display_by_id,
+        liked_track_ids=provided_likes,
     )
     recommendation_meta = {
         "source": card.get("source"),

@@ -24,7 +24,7 @@ Explain:
 3. why it was selected from the recommendation path.
 
 Keep why_text concise: 2-4 sentences, user-facing, non-technical unless the evidence needs a tag name.
-When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track the listener liked in a previous session.
+When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track already in the listener's liked history.
 """
 
 EXPLANATION_SCHEMA = {
@@ -69,9 +69,11 @@ def extract_liked_track_ids_from_evidence(evidence_md: str) -> list[str]:
 def build_historical_candidates_from_similar_rows(evidence_md: str,
                                                   similar_rows: list[dict],
                                                   display_by_id: dict[str, dict] | None = None,
-                                                  limit: int | None = None) -> list[dict]:
+                                                  limit: int | None = None,
+                                                  liked_track_ids: list[str] | None = None) -> list[dict]:
     """Convert recommended-track similarById rows into historical liked candidates."""
     historical_ids = set(extract_liked_track_ids_from_evidence(evidence_md))
+    historical_ids.update(track_id for track_id in liked_track_ids or [] if track_id)
     display_by_id = display_by_id or {}
     candidates = []
     for row in similar_rows:
@@ -199,7 +201,7 @@ def _build_user_prompt(profile_md: str,
         "explanation_example": explanation_example,
         "explanation_style_instruction": (
             "Explain recommended_track, not explanation_example. If explanation_example is present, use it only as a concrete previous liked-track example and compare shared Cyanite evidence. "
-            "Use explanation_example.example_type to distinguish whether the example came from the current session or previous-session evidence. "
+            "Use explanation_example.example_type to distinguish whether the example came from the current session or the listener's liked history. "
             "If it is null, do not claim the recommendation resembles a specific liked track; explain using the current prompt, profile, recommended-track tags, and ranking metadata instead."
         ),
     }
@@ -216,7 +218,7 @@ def _fallback_explanation(query_card: dict,
     if explanation_example:
         label = _example_label(explanation_example)
         if explanation_example.get("example_type") == "historical_like":
-            example_text = f" It is close enough to a track you liked in a previous session ({label}) to use that as a concrete taste example."
+            example_text = f" It is close enough to a track already in your liked history ({label}) to use that as a concrete taste example."
         else:
             example_text = f" It is close enough to a track you liked earlier in this session ({label}) to use that as a concrete taste example."
     return {

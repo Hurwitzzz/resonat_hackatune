@@ -40,6 +40,7 @@ def _fake_seams(monkeypatch, tmp_path):
                         })
     monkeypatch.setattr(orch.memory, "_ev_path", lambda u: tmp_path / f"{u}.evidence.md")
     monkeypatch.setattr(orch.memory, "_mem_path", lambda u: tmp_path / f"{u}.memory.md")
+    monkeypatch.setattr(orch.user_profiles, "liked_cyanite_ids", lambda u: [])
     return calls
 
 
@@ -173,6 +174,34 @@ def test_explain_uses_historical_similar_intersection(monkeypatch, tmp_path):
         "title": "T",
         "artist": "A",
     }
+
+
+def test_explain_uses_provided_user_likes_when_evidence_is_empty(monkeypatch, tmp_path):
+    sid, calls = _confirmed("provided_user", monkeypatch, tmp_path)
+
+    def fake_similar(cid, limit=20):
+        calls["similar"] += 1
+        return [{"cyanite_id": "provided_hist", "score": 0.93}]
+
+    captured = {}
+
+    def fake_build_explanation(profile_md, query_card, liked_track_tags, recommended_track_tags,
+                               recommendation_meta, explanation_example=None, recommended_track=None):
+        captured["explanation_example"] = explanation_example
+        captured["liked_track_tags"] = liked_track_tags
+        return {"why_text": "Because it connects to provided history.", "evidence": []}
+
+    monkeypatch.setattr(orch.user_profiles, "liked_cyanite_ids", lambda u: ["provided_hist"])
+    monkeypatch.setattr(orch.cyanite, "find_similar", fake_similar)
+    monkeypatch.setattr(orch.cyanite, "model_tags", lambda cid, models: {"track": cid})
+    monkeypatch.setattr(orch.explanation_builder, "build_explanation", fake_build_explanation)
+
+    body = client.post("/explain", json={"session_id": sid, "track_id": "libtr_0"}).json()
+
+    assert body["why_text"].startswith("Because")
+    assert captured["liked_track_tags"]["track"] == "provided_hist"
+    assert captured["explanation_example"]["track_id"] == "provided_hist"
+    assert captured["explanation_example"]["similar_score"] == 0.93
 
 
 def test_unknown_session_404(monkeypatch, tmp_path):

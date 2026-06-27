@@ -162,6 +162,33 @@ def test_build_historical_candidates_from_similar_rows_keeps_only_historical_lik
     ]
 
 
+def test_build_historical_candidates_from_similar_rows_includes_provided_user_likes():
+    similar_rows = [
+        {"cyanite_id": "provided_low", "score": 0.81},
+        {"cyanite_id": "provided_high", "score": 0.92},
+        {"cyanite_id": "not_liked", "score": 0.99},
+    ]
+
+    candidates = explanation_builder.build_historical_candidates_from_similar_rows(
+        "",
+        similar_rows,
+        liked_track_ids=["provided_low", "provided_high"],
+    )
+
+    assert candidates == [
+        {
+            "track_id": "provided_high",
+            "similar_score": 0.92,
+            "selection_basis": "historical_similar_by_id_intersection",
+        },
+        {
+            "track_id": "provided_low",
+            "similar_score": 0.81,
+            "selection_basis": "historical_similar_by_id_intersection",
+        },
+    ]
+
+
 def test_build_historical_candidates_from_similar_rows_supports_id_aliases_and_limit():
     evidence_md = """# evidence · demo
 
