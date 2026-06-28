@@ -63,15 +63,6 @@ def test_select_explanation_example_uses_source_liked_track_above_threshold():
     assert example == EXAMPLE
 
 
-def test_select_explanation_example_returns_none_below_similarity_threshold():
-    low_meta = {**META, "similar_score": 0.62, "final_score": 0.62}
-
-    assert explanation_builder.select_explanation_example(
-        liked_tracks=["liked_123"],
-        recommendation_meta=low_meta,
-    ) is None
-
-
 def test_extract_liked_track_ids_from_evidence_preserves_recent_order_without_duplicates():
     evidence_md = """# evidence · demo
 
@@ -109,17 +100,6 @@ def test_select_explanation_example_uses_historical_like_when_no_session_source(
     }
 
 
-def test_select_explanation_example_can_use_historical_when_session_source_is_below_threshold():
-    low_meta = {**META, "similar_score": 0.62, "final_score": 0.62}
-
-    example = explanation_builder.select_explanation_example(
-        liked_tracks=["liked_123"],
-        recommendation_meta=low_meta,
-        historical_candidates=[{"track_id": "hist_2", "similar_score": 0.9}],
-    )
-
-    assert example["track_id"] == "hist_2"
-    assert example["example_type"] == "historical_like"
 
 
 def test_build_historical_candidates_from_similar_rows_keeps_only_historical_likes():

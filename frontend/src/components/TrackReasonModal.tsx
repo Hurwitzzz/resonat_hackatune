@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
 import heroArt from "../assets/hero.png";
 
-const REASON_TEXT =
-  "This track found you because your sound brief points toward something warm, unhurried, and emotionally close. The recommendation balances soft rhythm, late-night texture, and a gentle lift so the song feels personal without pulling you out of the mood you described.";
-
 interface TrackReasonModalProps {
   track: MusicCardsTrack;
   reasonText?: string;
   isLoading?: boolean;
+  requested?: boolean;
+  onRequestReason?: () => void;
   onClose: () => void;
 }
 
 const TrackReasonModal = ({
   track,
-  reasonText = REASON_TEXT,
+  reasonText = "",
   isLoading = false,
+  requested = false,
+  onRequestReason,
   onClose,
 }: TrackReasonModalProps) => {
   const [visibleTokens, setVisibleTokens] = useState(0);
@@ -66,12 +67,24 @@ const TrackReasonModal = ({
           >
             why this song found you
           </h2>
-          <p className="font-serif mt-6 min-h-40 text-[18px] leading-[1.6] text-[var(--ink)]">
-            {visibleText}
-            {visibleTokens < tokens.length && (
-              <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-sm bg-[var(--blue)] align-middle" />
-            )}
-          </p>
+          {requested ? (
+            <p className="font-serif mt-6 min-h-40 text-[18px] leading-[1.6] text-[var(--ink)]">
+              {visibleText}
+              {visibleTokens < tokens.length && (
+                <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-sm bg-[var(--blue)] align-middle" />
+              )}
+            </p>
+          ) : (
+            <div className="mt-6 flex min-h-40 flex-col items-start justify-center">
+              <button
+                type="button"
+                onClick={onRequestReason}
+                className="font-display rounded-full border-[2.5px] border-solid border-[var(--ink)] px-6 py-3 text-[16px] font-bold uppercase leading-[1.4] text-[var(--ink)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)]"
+              >
+                why this song? →
+              </button>
+            </div>
+          )}
         </div>
       </section>
     </div>

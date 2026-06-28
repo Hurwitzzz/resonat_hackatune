@@ -202,6 +202,7 @@ def start_session(user_id: str, text: str) -> dict:
         "pool_sig": None,         # 上次建池用的 liked 集合签名（变了才重搜）
         "candidate_pool": [],     # dislike 时对 liked 种子搜出的相似候选
         "disliked_tracks": {},    # 明确踩过的
+        "round_finished": False,  # 「完成本轮」是否已落记忆（幂等防重复写）
     }
     _recompile(s)
     SESSIONS[sid] = s
@@ -231,14 +232,21 @@ def confirm(session_id: str) -> dict:
     return s
 
 
+<<<<<<< HEAD
 def feedback(session_id: str, track_id: str, verdict: str, mode: str = "normal") -> dict:
     """⑤ normal like → 记 liked + 划走 + 用该曲相似回填；
        anti_addiction like → 只记 liked，不动列表；
        dislike → 移除该曲，普通模式按 liked 相似回填，防沉迷按用户画像语义回填。"""
+=======
+def feedback(session_id: str, track_id: str, verdict: str) -> dict:
+    """⑤ like → 只记为 liked 种子，不搜索、不动列表、不落记忆（记忆在一轮结束时统一落，见 finish_round）；
+       dislike → 移除该曲 → 用 liked 种子搜相似回填一格。最后薄重排。"""
+>>>>>>> 1556e0e (feat: implement round completion functionality)
     s = _get(session_id)
     card = _visible_card(s, track_id)
     cid = card["cyanite_id"]
     if verdict == "like":
+<<<<<<< HEAD
         _record_like(s, cid)
         if mode != "anti_addiction":
             _remove_visible(s, cid)
@@ -246,6 +254,11 @@ def feedback(session_id: str, track_id: str, verdict: str, mode: str = "normal")
             fill = _best_similar_refill(s)
             if fill:
                 s["visible_cards"].append(fill)
+=======
+        if cid not in s["liked_tracks"]:
+            s["liked_tracks"].append(cid)
+        # 不跑任何检索、不落记忆，visible_cards 不动
+>>>>>>> 1556e0e (feat: implement round completion functionality)
     elif verdict == "dislike":
         s["disliked_tracks"][cid] = True
         _remove_visible(s, cid)
@@ -254,6 +267,18 @@ def feedback(session_id: str, track_id: str, verdict: str, mode: str = "normal")
             s["visible_cards"].append(fill)
     s["visible_cards"] = rerank.thin_rerank(s["visible_cards"])  # ⑥
     return s
+
+
+def finish_round(session_id: str) -> dict:
+    """⑦ 用户点「完成本轮」→ 把这一轮（当前 prompt + 选的歌）落记忆：
+    证据追加（每首歌带它的「感觉」标签）+ 画像重写。没 like 则只读不写。
+    幂等：重复点击不会重复写入。"""
+    s = _get(session_id)
+    if s["liked_tracks"] and not s["round_finished"]:
+        memory.append_evidence(s["user_id"], _final_prompt(s), s["liked_tracks"])
+        memory.rewrite_memory(s["user_id"])
+        s["round_finished"] = True
+    return {"memory_md": memory.read_memory(s["user_id"]), "liked": s["liked_tracks"]}
 
 
 def your_sound(user_id: str) -> str:

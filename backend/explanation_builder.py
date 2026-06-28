@@ -66,7 +66,7 @@ EXPLANATION_SCHEMA = {
     },
 }
 
-DEFAULT_EXAMPLE_SIMILARITY_THRESHOLD = 0.85
+DEFAULT_EXAMPLE_SIMILARITY_THRESHOLD = 0.0  # ponytail: threshold disabled; any positive-score source/historical track can explain
 
 
 def extract_liked_track_ids_from_evidence(evidence_md: str) -> list[str]:
@@ -145,15 +145,19 @@ def build_explanation(profile_md: str,
     """Return an English explanation grounded in provided Cyanite/user evidence."""
     if not config.OPENAI_API_KEY:
         return _fallback_explanation(query_card, recommendation_meta, explanation_example)
-    return _explanation_from_openai(
-        profile_md,
-        query_card,
-        liked_track_tags,
-        recommended_track_tags,
-        recommendation_meta,
-        explanation_example,
-        recommended_track,
-    )
+    try:
+        return _explanation_from_openai(
+            profile_md,
+            query_card,
+            liked_track_tags,
+            recommended_track_tags,
+            recommendation_meta,
+            explanation_example,
+            recommended_track,
+        )
+    except Exception:
+        # OpenAI 不可用（429 退避用尽 / 超时 / 任何报错）→ 降级到确定性解释，绝不 500
+        return _fallback_explanation(query_card, recommendation_meta, explanation_example)
 
 
 def _explanation_from_openai(profile_md: str,

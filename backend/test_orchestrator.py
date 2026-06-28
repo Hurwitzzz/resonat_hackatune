@@ -53,6 +53,8 @@ def _fake_seams(monkeypatch, tmp_path):
                         lambda posts, profile_md="": {"query": "test intent", "metadata_filter": None})
     monkeypatch.setattr(orch.memory, "_ev_path", lambda u: tmp_path / f"{u}.evidence.md")
     monkeypatch.setattr(orch.memory, "_mem_path", lambda u: tmp_path / f"{u}.memory.md")
+    monkeypatch.setattr(orch.memory, "_feeling_tags", lambda cid: ["calm", "warm"])  # 不打网络
+    monkeypatch.setattr(orch.memory, "_llm_profile", lambda info: None)              # 走确定性兜底
     monkeypatch.setattr(orch.user_profiles, "liked_cyanite_ids", lambda u: [])
     return calls
 
@@ -110,12 +112,21 @@ def test_normal_like_swipes_and_refills_from_clicked_track_similarity(monkeypatc
     assert calls["similar"] == 1                       # 普通 like 立刻用被 liked 曲搜相似
     assert calls["similar_args"] == [("libtr_0", 10)]
     assert orch.SESSIONS[sid]["liked_tracks"] == ["libtr_0"]
+<<<<<<< HEAD
     ids = [c["track_id"] for c in body["cards"]]
     assert "libtr_0" not in ids                         # 被 liked 的卡划走
     assert "sim_0" in ids                               # 最高 similar_score 回填
     assert len(ids) == orch.config.VISIBLE_N
     assert ids != before
     assert (tmp_path / "u2.evidence.md").read_text(encoding="utf-8").count("\n- ") == 1
+=======
+    assert [c["track_id"] for c in body["cards"]] == before  # 当前列表不变
+    assert not (tmp_path / "u2.evidence.md").exists()        # like 不落记忆（一轮结束才统一落）
+
+    fin = client.post("/round/finish", json={"session_id": sid}).json()   # ⑦ 完成本轮
+    assert (tmp_path / "u2.evidence.md").read_text(encoding="utf-8").count("\n- ") == 1  # 此刻才写 1 行
+    assert "你的感觉" in fin["memory_md"]
+>>>>>>> 1556e0e (feat: implement round completion functionality)
 
 
 def test_anti_addiction_like_records_without_swiping(monkeypatch, tmp_path):

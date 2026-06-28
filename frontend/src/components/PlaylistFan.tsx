@@ -54,6 +54,7 @@ const PlaylistFan = ({
   const [selected, setSelected] = useState<SampleTrack | null>(null);
   const [selectedReason, setSelectedReason] = useState("");
   const [isReasonLoading, setIsReasonLoading] = useState(false);
+  const [reasonRequested, setReasonRequested] = useState(false);
   const [fanScale, setFanScale] = useState(1);
 
   const nextInstanceId = useRef(0);
@@ -171,6 +172,7 @@ const PlaylistFan = ({
     replaceTimers.current.push(timer);
   };
 
+<<<<<<< HEAD
   const dismiss = (slotIndex: number, track: SampleTrack) => {
     removeCard(slotIndex, track, onDismiss);
   };
@@ -187,13 +189,24 @@ const PlaylistFan = ({
     removeCard(slotIndex, track, onLike);
   };
 
+=======
+  // 打开卡片只开 modal，不取解释（省掉一次 OpenAI 调用）。
+>>>>>>> 1556e0e (feat: implement round completion functionality)
   const openTrack = (track: SampleTrack) => {
     modalOpenRef.current = true;
     play(track.id);
     setSelected(track);
     setSelectedReason("");
+    setIsReasonLoading(false);
+    setReasonRequested(false);
+  };
+
+  // 用户在 modal 里点「why」才取解释——explain 真正只在显式点击时发生。
+  const requestReason = () => {
+    if (!selected || reasonRequested) return;
+    setReasonRequested(true);
     setIsReasonLoading(true);
-    void onExplain?.(track)
+    void onExplain?.(selected)
       .then((reason) => setSelectedReason(reason))
       .catch(() =>
         setSelectedReason(
@@ -290,6 +303,8 @@ const PlaylistFan = ({
           }}
           reasonText={selectedReason}
           isLoading={isReasonLoading}
+          requested={reasonRequested}
+          onRequestReason={requestReason}
           onClose={() => {
             modalOpenRef.current = false;
             setSelected(null);

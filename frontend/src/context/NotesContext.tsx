@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import type { Note } from "../types";
+<<<<<<< HEAD
 import type {
   ExplanationResponse,
   FeedbackMode,
@@ -14,6 +15,10 @@ import type {
   RecommendationCard,
 } from "../api";
 import { confirm, explain, feedback, intent } from "../api";
+=======
+import type { ExplanationResponse, QueryCard, RecommendationCard } from "../api";
+import { confirm, explain, feedback, finishRound, intent } from "../api";
+>>>>>>> 1556e0e (feat: implement round completion functionality)
 
 const joinNotes = (notes: Note[]): string =>
   notes
@@ -38,6 +43,7 @@ interface NotesContextValue {
   cards: RecommendationCard[];
   likedCards: RecommendationCard[];
   isLoadingCards: boolean;
+<<<<<<< HEAD
   cardsError: string;
   confirmSound: () => Promise<boolean>;
   sendFeedback: (
@@ -46,6 +52,13 @@ interface NotesContextValue {
     mode?: FeedbackMode,
   ) => Promise<void>;
   unlikeTrack: (trackId: string) => void;
+=======
+  memoryMd: string;
+  isFinishingRound: boolean;
+  confirmSound: () => Promise<boolean>;
+  completeRound: () => Promise<string | null>;
+  sendFeedback: (trackId: string, verdict: "like" | "dislike") => Promise<void>;
+>>>>>>> 1556e0e (feat: implement round completion functionality)
   explainTrack: (trackId: string) => Promise<ExplanationResponse>;
   explanationsByTrackId: Record<string, ExplanationResponse>;
   addNote: () => void;
@@ -64,7 +77,12 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   const [cards, setCards] = useState<RecommendationCard[]>([]);
   const [likedCards, setLikedCards] = useState<RecommendationCard[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(false);
+<<<<<<< HEAD
   const [cardsError, setCardsError] = useState("");
+=======
+  const [memoryMd, setMemoryMd] = useState("");
+  const [isFinishingRound, setIsFinishingRound] = useState(false);
+>>>>>>> 1556e0e (feat: implement round completion functionality)
   const [explanationsByTrackId, setExplanationsByTrackId] = useState<
     Record<string, ExplanationResponse>
   >({});
@@ -140,11 +158,28 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+<<<<<<< HEAD
   const sendFeedback = async (
     trackId: string,
     verdict: "like" | "dislike",
     mode: FeedbackMode = "normal",
   ) => {
+=======
+  // 「完成本轮」：把这一轮选的歌落成「感觉」记忆，拿回更新后的画像。
+  const completeRound = async (): Promise<string | null> => {
+    if (!sessionId) return null;
+    setIsFinishingRound(true);
+    try {
+      const result = await finishRound(sessionId);
+      setMemoryMd(result.memory_md);
+      return result.memory_md;
+    } finally {
+      setIsFinishingRound(false);
+    }
+  };
+
+  const sendFeedback = async (trackId: string, verdict: "like" | "dislike") => {
+>>>>>>> 1556e0e (feat: implement round completion functionality)
     if (!sessionId) return;
     if (verdict === "like") {
       const liked = cards.find(
@@ -225,8 +260,14 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     cards,
     likedCards,
     isLoadingCards,
+<<<<<<< HEAD
     cardsError,
+=======
+    memoryMd,
+    isFinishingRound,
+>>>>>>> 1556e0e (feat: implement round completion functionality)
     confirmSound,
+    completeRound,
     sendFeedback,
     unlikeTrack,
     explainTrack,

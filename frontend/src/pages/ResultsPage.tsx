@@ -127,6 +127,9 @@ const ResultsPage = () => {
     unlikeTrack,
     explainTrack,
     explanationsByTrackId,
+    completeRound,
+    memoryMd,
+    isFinishingRound,
   } = useNotes();
   const [isLeaving, setIsLeaving] = useState(false);
   const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>("normal");
@@ -304,6 +307,24 @@ const ResultsPage = () => {
           <p className="font-serif mt-8 max-w-3xl text-[22px] italic leading-[1.25] text-[var(--paper)]">
             {explanation}
           </p>
+        )}
+
+        {/* 「完成本轮」— 把这一轮选的歌落成「感觉」记忆。 */}
+        {tracks.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void completeRound()}
+            disabled={isFinishingRound}
+            className="font-display mt-10 flex min-h-11 items-center gap-2 rounded-full border-[2.5px] border-solid border-[var(--paper)] px-6 py-3 text-[16px] font-bold uppercase leading-[1.4] text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)] disabled:opacity-60"
+          >
+            {isFinishingRound ? "saving your feel..." : "完成本轮 · save my feel"}
+          </button>
+        )}
+
+        {memoryMd && (
+          <pre className="font-serif mt-6 max-w-3xl whitespace-pre-wrap text-[18px] leading-[1.5] text-[var(--paper)] opacity-90">
+            {memoryMd}
+          </pre>
         )}
       </section>
     </main>
