@@ -103,7 +103,7 @@ const LikedSongsShelf = ({
                     <a
                       href={downloadUrl(numericTrackId)}
                       download
-                      className="font-display inline-flex items-center rounded-full border border-[var(--paper)] px-2.5 py-1 text-[11px] font-bold uppercase leading-none text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)]"
+                      className="font-display inline-flex items-center rounded-full border border-[var(--paper)] px-6 py-1 text-[11px] font-bold uppercase leading-none text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)]"
                     >
                       download
                     </a>

@@ -94,11 +94,11 @@ const StartPage = () => {
         <div className="start-page-content flex min-h-screen flex-col items-center justify-center gap-10 p-12">
           {/* Center text: greeting at the start, the explanation once editing finishes. */}
           {explanation ? (
-            <div className="start-page-copy max-w-2xl text-center">
+            <div className="start-page-copy max-w-4xl px-4 text-center">
               <p className="font-sans mb-3 whitespace-nowrap text-[28px] font-semibold leading-none text-[var(--paper)]">
                 We translated your memo into a sound brief.
               </p>
-              <p className="font-serif text-[32px] italic leading-[1.2] text-[var(--paper)]">
+              <p className="font-serif text-[22px] italic leading-[1.35] text-[var(--paper)]">
                 {explanation}
               </p>
             </div>
