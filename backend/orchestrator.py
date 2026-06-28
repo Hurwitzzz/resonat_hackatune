@@ -16,7 +16,9 @@ import explanation_builder
 import intent_compiler
 import memory
 import rerank
+import surprise_selector
 import user_profiles
+from profile import tags as profile_tags
 
 # 会话存储：内存 dict
 SESSIONS: dict[str, dict] = {}
@@ -131,6 +133,7 @@ def start_session(user_id: str, text: str) -> dict:
         "pool_sig": None,         # 上次建池用的 liked 集合签名（变了才重搜）
         "candidate_pool": [],     # dislike 时对 liked 种子搜出的相似候选
         "disliked_tracks": {},    # 明确踩过的
+        "surprise_metadata": {},  # 后端解释依据；前端只看到卡片上的 is_surprise
     }
     _recompile(s)
     SESSIONS[sid] = s
@@ -150,8 +153,24 @@ def confirm(session_id: str) -> dict:
     s = _get(session_id)
     results = cyanite.search_by_prompt(s["query_card"]["free_text_query"], limit=config.SEARCH_LIMIT)
     cards = cyanite.enrich_meta([_card(r["cyanite_id"], r["score"], "free_text") for r in results])
-    s["visible_cards"] = cards[:config.VISIBLE_N]
-    s["free_text_backlog"] = cards[config.VISIBLE_N:]
+    historical_ids = explanation_builder.extract_liked_track_ids_from_evidence(
+        memory.read_evidence(s["user_id"])
+    )
+    taste_track_ids = list(dict.fromkeys(
+        s["liked_tracks"] + historical_ids + user_profiles.liked_cyanite_ids(s["user_id"])
+    ))
+    selection = surprise_selector.select_surprise_recommendations(
+        cards,
+        taste_track_ids=taste_track_ids,
+        tag_loader=profile_tags.for_track,
+        visible_n=config.VISIBLE_N,
+        force_one=config.SURPRISE_DEMO_FORCE_ONE,
+        probability=config.SURPRISE_PROBABILITY,
+        candidate_limit=config.SURPRISE_CANDIDATE_LIMIT,
+    )
+    s["visible_cards"] = selection.visible_cards
+    s["free_text_backlog"] = selection.backlog_cards
+    s["surprise_metadata"] = selection.metadata_by_id
     return s
 
 
@@ -204,6 +223,7 @@ def explain(session_id: str, track_id: str) -> dict:
         "source": card.get("source"),
         "score": card.get("score"),
         "ranking_basis": "visible_card_score",
+        **s["surprise_metadata"].get(cyanite_id, {}),
     }
     explanation_example = explanation_builder.select_explanation_example(
         s["liked_tracks"],

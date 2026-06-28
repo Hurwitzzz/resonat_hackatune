@@ -41,6 +41,7 @@ Explain:
 
 Keep why_text concise: 2-4 sentences, user-facing, non-technical unless the evidence needs a tag name.
 When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track already in the listener's liked history.
+When recommendation_meta.is_surprise is true, describe it as controlled exploration: explain which supplied attributes preserve a bridge to the listener's taste and which supplied attributes intentionally broaden it. Never describe it as random.
 """
 
 EXPLANATION_SCHEMA = {
@@ -228,6 +229,22 @@ def _fallback_explanation(query_card: dict,
                           recommendation_meta: dict,
                           explanation_example: dict | None) -> dict:
     query = query_card.get("free_text_query") or query_card.get("interpretation_plain") or "your current search"
+    if recommendation_meta.get("is_surprise"):
+        shared = ", ".join(recommendation_meta.get("shared_attributes") or [])
+        different = ", ".join(recommendation_meta.get("different_attributes") or [])
+        bridge_text = f" It keeps {shared} as a bridge to your taste." if shared else ""
+        contrast_text = f" It deliberately introduces {different}." if different else ""
+        return {
+            "why_text": (
+                f"This track still fits your current search for {query}. "
+                f"It is a controlled exploration pick rather than a pure similarity match."
+                f"{bridge_text}{contrast_text}"
+            ),
+            "evidence": [{
+                "source": "surprise_selection",
+                "detail": f"selection_basis={recommendation_meta.get('selection_basis')}",
+            }],
+        }
     score = recommendation_meta.get("final_score", recommendation_meta.get("similar_score"))
     score_text = f" with score {score:.2f}" if isinstance(score, int | float) else ""
     example_text = ""

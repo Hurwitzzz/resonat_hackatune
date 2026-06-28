@@ -30,7 +30,8 @@ def _fake_seams(monkeypatch, tmp_path):
     monkeypatch.setattr(orch.cyanite, "find_similar", fake_similar)
     monkeypatch.setattr(orch.cyanite, "find_similar_multi", fake_multi)
     monkeypatch.setattr(orch.cyanite, "display",
-                        lambda cid: {"track_id": cid, "cyanite_id": cid, "title": "T", "artist": "A"})
+                        lambda cid, track_id="": {"track_id": track_id or cid, "cyanite_id": cid,
+                                                   "title": "T", "artist": "A"})
     monkeypatch.setattr(orch.intent_compiler, "compile_query_card",
                         lambda posts, profile_md="": {
                             "interpretation_plain": "test intent",
@@ -41,6 +42,15 @@ def _fake_seams(monkeypatch, tmp_path):
     monkeypatch.setattr(orch.memory, "_ev_path", lambda u: tmp_path / f"{u}.evidence.md")
     monkeypatch.setattr(orch.memory, "_mem_path", lambda u: tmp_path / f"{u}.memory.md")
     monkeypatch.setattr(orch.user_profiles, "liked_cyanite_ids", lambda u: [])
+    monkeypatch.setattr(
+        orch.surprise_selector,
+        "select_surprise_recommendations",
+        lambda cards, **kwargs: orch.surprise_selector.SurpriseSelection(
+            visible_cards=[{**card, "is_surprise": False} for card in cards[:orch.config.VISIBLE_N]],
+            backlog_cards=[{**card, "is_surprise": False} for card in cards[orch.config.VISIBLE_N:]],
+            metadata_by_id={},
+        ),
+    )
     return calls
 
 
@@ -66,6 +76,26 @@ def test_confirm_fills_visible_and_backlog(monkeypatch, tmp_path):
     body = client.post("/intent/confirm", json={"session_id": sid}).json()
     assert len(body["cards"]) == orch.config.VISIBLE_N
     assert len(orch.SESSIONS[sid]["free_text_backlog"]) == len(SEARCH) - orch.config.VISIBLE_N
+
+
+def test_confirm_keeps_surprise_metadata_internal(monkeypatch, tmp_path):
+    sid, _ = _confirmed("u-surprise", monkeypatch, tmp_path)
+
+    def fake_select(cards, **kwargs):
+        visible = [{**card, "is_surprise": False} for card in cards[:5]]
+        visible[-1]["is_surprise"] = True
+        return orch.surprise_selector.SurpriseSelection(
+            visible_cards=visible,
+            backlog_cards=cards[5:],
+            metadata_by_id={visible[-1]["cyanite_id"]: {"different_attributes": ["genres:jazz"]}},
+        )
+
+    monkeypatch.setattr(orch.surprise_selector, "select_surprise_recommendations", fake_select)
+    body = client.post("/intent/confirm", json={"session_id": sid}).json()
+
+    assert sum(card["is_surprise"] for card in body["cards"]) == 1
+    assert "different_attributes" not in body["cards"][-1]
+    assert orch.SESSIONS[sid]["surprise_metadata"]
 
 
 def test_like_records_seed_without_searching(monkeypatch, tmp_path):

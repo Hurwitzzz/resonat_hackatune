@@ -243,6 +243,28 @@ def test_fallback_explanation_is_grounded_and_english(monkeypatch):
     assert result["evidence"][0]["source"] == "ranking"
 
 
+def test_fallback_explains_surprise_as_controlled_exploration(monkeypatch):
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "", raising=False)
+    surprise_meta = {
+        "is_surprise": True,
+        "selection_basis": "cyanite_tag_contrast_with_prompt_guardrail",
+        "shared_attributes": ["moods:calm"],
+        "different_attributes": ["genres:electronic", "instruments:synth"],
+    }
+
+    result = explanation_builder.build_explanation(
+        "You often like calm classical piano.",
+        QUERY_CARD,
+        LIKED_TAGS,
+        RECOMMENDED_TAGS,
+        surprise_meta,
+    )
+
+    assert "controlled exploration" in result["why_text"]
+    assert "moods:calm" in result["why_text"]
+    assert "genres:electronic" in result["why_text"]
+
+
 def test_openai_explanation_request_contains_grounding_inputs(monkeypatch):
     captured = {}
     monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)

@@ -29,6 +29,11 @@ VISIBLE_N = 5        # 推荐列表一次展示几首
 SEARCH_LIMIT = 20    # freeText 召回上限
 SIMILAR_LIMIT = 20   # like 后 similarById 召回上限
 EXPLAIN_SIMILAR_LIMIT = 50
+# Demo requires one visible exploration pick. In production set this to false;
+# then SURPRISE_PROBABILITY is evaluated once per recommendation group, not per track.
+SURPRISE_DEMO_FORCE_ONE = True
+SURPRISE_PROBABILITY = 0.05
+SURPRISE_CANDIDATE_LIMIT = 5
 EXPLAIN_TAG_MODELS = [
     "MainGenreV2",
     "MoodSimpleV2",
