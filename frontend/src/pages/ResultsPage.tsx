@@ -33,7 +33,6 @@ const toTrack = (card: RecommendationCard): SampleTrack => ({
 const ResultsPage = () => {
   const {
     notes,
-    explanation,
     cards,
     sendFeedback,
     explainTrack,
@@ -138,10 +137,6 @@ const ResultsPage = () => {
         <h1 className="font-display max-w-3xl text-[40px] font-bold uppercase leading-none tracking-[-0.01em] text-[var(--paper)]">
           A playlist built from your memo
         </h1>
-
-        <p className="font-serif mt-6 max-w-3xl text-[32px] italic leading-[1.2] text-[var(--yellow)]">
-          {explanation || "Your confirmed sound brief is ready."}
-        </p>
 
         <div className="mt-10">
           {tracks.length > 0 ? (

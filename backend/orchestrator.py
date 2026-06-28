@@ -13,7 +13,7 @@ import uuid
 import config
 import cyanite
 import explanation_builder
-import intent_compiler
+import intent_agent
 import memory
 import rerank
 import user_profiles
@@ -45,7 +45,7 @@ def _get(session_id: str) -> dict:
 def _recompile(s: dict) -> None:
     """白板有变就重编 Query Card，带上该用户的记忆画像。"""
     profile = memory.read_memory(s["user_id"])
-    s["query_card"] = intent_compiler.compile_query_card(s["whiteboard_posts"], profile)
+    s["query_card"] = intent_agent.compile_query_card(s["whiteboard_posts"], profile)
 
 
 def _card(cyanite_id: str, score: float, source: str) -> dict:
@@ -146,9 +146,14 @@ def add_follow_up(session_id: str, text: str) -> dict:
 
 
 def confirm(session_id: str) -> dict:
-    """③ 过确认门 → 只跑 freeTextSearch → 填首批推荐 + backlog。不做 similar 粗扩展。"""
+    """③ 过确认门 → 此刻才跑 search 阶段（tool calling）拿检索参数 → freeTextSearch
+       → 填首批推荐 + backlog。不做 similar 粗扩展。"""
     s = _get(session_id)
-    results = cyanite.search_by_prompt(s["query_card"]["free_text_query"], limit=config.SEARCH_LIMIT)
+    args = intent_agent.search_args(s["whiteboard_posts"], memory.read_memory(s["user_id"]))
+    s["query_card"]["free_text_query"] = args["query"]
+    s["query_card"]["metadata_filter"] = args["metadata_filter"]
+    results = cyanite.search_by_prompt(args["query"], limit=config.SEARCH_LIMIT,
+                                       metadata_filter=args["metadata_filter"])
     cards = cyanite.enrich_meta([_card(r["cyanite_id"], r["score"], "free_text") for r in results])
     s["visible_cards"] = cards[:config.VISIBLE_N]
     s["free_text_backlog"] = cards[config.VISIBLE_N:]

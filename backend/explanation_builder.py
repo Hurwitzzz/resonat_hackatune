@@ -40,6 +40,7 @@ Explain:
 3. why it was selected from the recommendation path.
 
 Keep why_text concise: 2-4 sentences, user-facing, non-technical unless the evidence needs a tag name.
+Write why_text as plain prose. Do not use any markdown: no asterisks, bold, bullet points, or headings (the UI renders raw text, so those symbols would show literally).
 When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track already in the listener's liked history.
 """
 
@@ -317,9 +318,13 @@ def _extract_output_text(payload: dict) -> str:
     raise ValueError("OpenAI response did not contain output text")
 
 
+# 兜底：前端纯文本渲染，剥掉模型偶尔漏带的 markdown 符号。
+_MD = re.compile(r"\*\*|__|`|^\s*[-*•#]+\s+", re.M)
+
+
 def _normalize_explanation(raw: dict) -> dict:
     return {
-        "why_text": str(raw.get("why_text", "")).strip(),
+        "why_text": _MD.sub("", str(raw.get("why_text", ""))).strip(),
         "evidence": [_normalize_evidence(x) for x in raw.get("evidence", []) if isinstance(x, dict)],
     }
 
