@@ -24,6 +24,7 @@ const coverForCard = (card: RecommendationCard) => {
 
 const toTrack = (card: RecommendationCard): SampleTrack => ({
   id: card.cyanite_id,
+  trackId: card.track_id,
   title: displayTitle(card),
   artist: displayArtist(card),
   url: card.track_id ? trackUrl(card.track_id) : "",

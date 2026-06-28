@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import MusicCard from "./MusicCard";
 import TrackReasonModal from "./TrackReasonModal";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
-import { SAMPLE_TRACKS, type SampleTrack } from "../sampleTracks";
+import { SAMPLE_TRACKS, downloadUrl, type SampleTrack } from "../sampleTracks";
 
 const SLOTS = [
   { x: -312, y: 58, rot: -16, z: 8 },
@@ -225,6 +225,11 @@ const PlaylistFan = ({
                       artist={card.track.artist}
                       cover={card.track.cover}
                       isPlaying={playingId === card.track.id}
+                      downloadUrl={
+                        (card.track.trackId ?? card.track.id).match(/^\d+$/)
+                          ? downloadUrl(card.track.trackId ?? card.track.id)
+                          : undefined
+                      }
                       onOpen={() => openTrack(card.track)}
                       onLike={(liked) => {
                         if (liked) void onLike?.(card.track);

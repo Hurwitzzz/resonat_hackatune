@@ -7,11 +7,15 @@ run: uv run uvicorn app:app --reload
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+import config
 import cyanite
 import orchestrator
 
@@ -103,6 +107,52 @@ def explain(body: ExplainIn):
 @app.get("/your-sound")
 def your_sound(user_id: str = "demo"):
     return {"memory_md": orchestrator.your_sound(user_id)}
+
+
+# ─────────── 高质量下载代理 ───────────
+# 走官方 /tracks API 拿 audiodownload + audiodownload_allowed（艺术家可关下载），
+# 再服务器端带 Referer 取文件。浏览器没法直接下：Jamendo 防盗链 403 + 无 CORS 头。
+# 全程重试：Jamendo 偶发连接重置，单次失败不该让用户拿到 500。
+_DL_HEADERS = {"Referer": "https://www.jamendo.com/", "User-Agent": "Mozilla/5.0"}
+
+
+def _get_with_retry(url: str, *, params=None, tries: int = 3, **kw) -> requests.Response:
+    last = None
+    for _ in range(tries):
+        try:
+            r = requests.get(url, params=params, headers=_DL_HEADERS, timeout=30, **kw)
+            r.raise_for_status()
+            return r
+        except requests.RequestException as e:
+            last = e
+    raise HTTPException(502, f"Jamendo unreachable: {last}")
+
+
+@app.get("/download/{track_id}")
+def download(track_id: str):
+    if not track_id.isdigit():  # 只允许 Jamendo 数字 id，挡 SSRF
+        raise HTTPException(400, "track_id must be numeric")
+    if not config.JAMENDO_CLIENT_ID:
+        raise HTTPException(503, "download disabled: JAMENDO_CLIENT_ID not set")
+
+    meta = _get_with_retry(f"{config.JAMENDO_BASE_URL}/tracks",
+                           params={"client_id": config.JAMENDO_CLIENT_ID, "id": track_id,
+                                   "format": "json", "audioformat": "mp32"}).json()
+    results = meta.get("results") or []
+    if not results:
+        raise HTTPException(404, "track not found on Jamendo")
+    t = results[0]
+    if not t.get("audiodownload_allowed") or not t.get("audiodownload"):
+        raise HTTPException(403, "The artist has disabled download for this track.")
+
+    # 流式透传：浏览器点完立刻开始下、能显示进度，而不是等服务器缓冲完整文件。
+    # 错误状态码靠上面的 /tracks 元数据预检保证；这里只有上游中途断开才会半途失败（罕见，可接受）。
+    r = _get_with_retry(t["audiodownload"], stream=True)
+    name = quote(f'{t.get("name", "track")} - {t.get("artist_name", "Jamendo")}.mp3')
+    headers = {"content-disposition": f"attachment; filename*=UTF-8''{name}"}
+    if cl := r.headers.get("content-length"):  # 透传长度，浏览器才有进度条
+        headers["content-length"] = cl
+    return StreamingResponse(r.iter_content(64 * 1024), media_type="audio/mpeg", headers=headers)
 
 
 # ─────────── Cyanite 透传（调试用，直接在 /docs 试）───────────
