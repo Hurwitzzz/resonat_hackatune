@@ -1,6 +1,6 @@
 <div align="center">
 
-# Cochlea
+# Sounds Like You
 
 **An audio-first music discovery demo for HACKATUNE 2026**
 
