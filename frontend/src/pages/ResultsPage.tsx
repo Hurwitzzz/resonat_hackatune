@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import GrainientBackground from "../components/GrainientBackground";
 import MusicCard from "../components/MusicCard";
@@ -52,9 +52,10 @@ const LikedSongsShelf = ({
   onUnlike: (track: SampleTrack) => void;
 }) => {
   const { playingId, play, stop } = useAudioPlayer(tracks);
+  const [licenseTrackId, setLicenseTrackId] = useState<string | null>(null);
 
   return (
-    <section className="mt-5 flex shrink-0 flex-col rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.045)] p-3">
+    <section className="mt-5 flex min-h-0 flex-1 flex-col rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.045)] p-3">
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] pb-3">
         <h3 className="font-display text-[14px] font-bold uppercase leading-none text-[var(--paper)] opacity-80">
           liked songs
@@ -63,7 +64,7 @@ const LikedSongsShelf = ({
           {tracks.length}
         </span>
       </div>
-      <div className="mt-3 flex max-h-64 min-h-[88px] flex-col gap-2 overflow-y-auto pr-1">
+      <div className="mt-3 flex min-h-[88px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
         {tracks.length === 0 && (
           <p className="font-serif m-auto text-[13px] italic text-[var(--paper)] opacity-40">
             liked tracks land here
@@ -100,13 +101,13 @@ const LikedSongsShelf = ({
                     {isPlaying ? "stop" : "preview"}
                   </button>
                   {numericTrackId && (
-                    <a
-                      href={downloadUrl(numericTrackId)}
-                      download
+                    <button
+                      type="button"
+                      onClick={() => setLicenseTrackId(numericTrackId)}
                       className="font-display inline-flex items-center rounded-full border border-[var(--paper)] px-6 py-1 text-[11px] font-bold uppercase leading-none text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)]"
                     >
                       download
-                    </a>
+                    </button>
                   )}
                   <button
                     type="button"
@@ -124,6 +125,52 @@ const LikedSongsShelf = ({
           );
         })}
       </div>
+      {licenseTrackId &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[20000] flex items-center justify-center bg-[rgba(27,27,27,.88)] p-6 backdrop-blur-sm"
+            onClick={() => setLicenseTrackId(null)}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="shelf-download-license-title"
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-md rounded-[10px] bg-[var(--paper)] p-8 text-[var(--ink)] shadow-[var(--shadow-block)]"
+            >
+              <h2
+                id="shelf-download-license-title"
+                className="font-display text-[28px] font-bold uppercase leading-none tracking-[-0.01em]"
+              >
+                Personal use only
+              </h2>
+              <p className="font-serif mt-5 text-[16px] leading-[1.6]">
+                These tracks come from Jamendo under a Creative Commons license.
+                You're free to download and enjoy them personally, but{" "}
+                <strong>commercial use is not permitted</strong> without a
+                separate license from Jamendo.
+              </p>
+              <div className="mt-7 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLicenseTrackId(null)}
+                  className="font-display rounded-full px-5 py-2.5 text-[14px] font-bold uppercase opacity-60 transition hover:opacity-100"
+                >
+                  Cancel
+                </button>
+                <a
+                  href={downloadUrl(licenseTrackId)}
+                  download
+                  onClick={() => setLicenseTrackId(null)}
+                  className="font-display rounded-full border border-[var(--ink)] px-5 py-2.5 text-[14px] font-bold uppercase leading-none text-[var(--ink)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)]"
+                >
+                  Download
+                </a>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
     </section>
   );
 };
@@ -406,7 +453,7 @@ const ResultsPage = () => {
           type="button"
           onClick={handleSteer}
           disabled={isLeaving}
-          className="steer-button font-display mt-auto flex min-h-11 w-full shrink-0 items-center gap-2 rounded-full border-[2.5px] border-solid border-[var(--paper)] px-5 py-3 text-left text-[16px] font-bold uppercase leading-[1.4] text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)] disabled:cursor-default"
+          className="steer-button font-display mt-3 flex min-h-11 w-full shrink-0 items-center gap-2 rounded-full border-[2.5px] border-solid border-[var(--paper)] px-5 py-3 text-left text-[16px] font-bold uppercase leading-[1.4] text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)] disabled:cursor-default"
         >
           <Plus size={18} />
           <span>steer...</span>

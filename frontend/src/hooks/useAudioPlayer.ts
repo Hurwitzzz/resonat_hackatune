@@ -7,6 +7,13 @@ export interface PlayerTrack {
 
 const PRELOAD_TIMEOUT_MS = 20000;
 
+// Module-level handle to the player instance currently producing sound. Each
+// hook instance only pauses its OWN audio elements, so without this every
+// instance on the page (the playlist fan, the liked-songs shelf, the
+// "sounds like you" card) would play over the top of each other. Whoever
+// starts playing stops whoever was playing before — one track across the page.
+let activeStopRef: { current: () => void } | null = null;
+
 // Manages one-at-a-time audio playback for a small set of tracks, plus a
 // SEQUENTIAL preload queue (one request at a time) so we don't trip Jamendo's
 // burst rate-limiting.
@@ -88,11 +95,27 @@ export function useAudioPlayer(
     setPlayingId(null);
   }, []);
 
+  // Stable per-instance handle so other instances can stop this one. Kept in
+  // sync with the latest `stop` on every render.
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
+
+  // On unmount, relinquish the page-wide "active player" slot if we hold it.
+  useEffect(
+    () => () => {
+      if (activeStopRef === stopRef) activeStopRef = null;
+    },
+    [],
+  );
+
   const play = useCallback(
     (id: string) => {
       const audios = audiosRef.current;
       const target = audios.get(id);
       if (!target) return;
+      // Stop whatever was playing elsewhere on the page, then claim the slot.
+      if (activeStopRef && activeStopRef !== stopRef) activeStopRef.current();
+      activeStopRef = stopRef;
       for (const [key, audio] of audios) {
         if (key !== id) audio.pause();
       }

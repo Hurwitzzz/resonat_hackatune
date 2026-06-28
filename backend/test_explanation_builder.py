@@ -240,6 +240,68 @@ def test_fallback_prompt_pool_track_does_not_claim_similarity(monkeypatch):
     assert "your search brief" in result["why_text"]
 
 
+def test_similar_source_forces_seed_title_and_artist_when_llm_omits_it(monkeypatch):
+    # similarById 卡：模型若漏掉种子曲名，确定性兜底必须把「歌名 by 作者」补回 why_text 开头。
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output": [{"content": [{"type": "output_text", "text": json.dumps({
+                "why_text": "This track shares calm, dark moods with a track you liked.",
+                "evidence": [{"source": "ranking", "detail": "score 0.91"}],
+            })}]}]}
+
+    monkeypatch.setattr(explanation_builder.requests, "post",
+                        lambda *a, **k: FakeResponse())
+
+    result = explanation_builder.build_explanation(
+        "The listener likes calm, dark, low-energy music.",
+        QUERY_CARD,
+        LIKED_TAGS,
+        RECOMMENDED_TAGS,
+        {**META, "source": "similar"},
+        DISPLAY_EXAMPLE,
+        RECOMMENDED_TRACK,
+    )
+
+    assert "73rd Moon" in result["why_text"]
+    assert "Reno Project" in result["why_text"]
+    assert result["why_text"].startswith("Because you liked 73rd Moon by Reno Project")
+
+
+def test_similar_source_does_not_duplicate_seed_when_llm_already_named_it(monkeypatch):
+    # 模型已点名种子歌时不重复补句。
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output": [{"content": [{"type": "output_text", "text": json.dumps({
+                "why_text": "Because you liked 73rd Moon by Reno Project, we found this calm, dark match.",
+                "evidence": [{"source": "ranking", "detail": "score 0.91"}],
+            })}]}]}
+
+    monkeypatch.setattr(explanation_builder.requests, "post",
+                        lambda *a, **k: FakeResponse())
+
+    result = explanation_builder.build_explanation(
+        "The listener likes calm, dark, low-energy music.",
+        QUERY_CARD,
+        LIKED_TAGS,
+        RECOMMENDED_TAGS,
+        {**META, "source": "similar"},
+        DISPLAY_EXAMPLE,
+        RECOMMENDED_TRACK,
+    )
+
+    assert result["why_text"].count("73rd Moon") == 1
+
+
 def test_openai_explanation_request_contains_grounding_inputs(monkeypatch):
     captured = {}
     monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)

@@ -371,6 +371,12 @@ def explain(session_id: str, track_id: str) -> dict:
     )
     if explanation_example:
         display = cyanite.display(explanation_example["track_id"])
+        # 种子曲（前面那首 liked）不在数据包时 title/artist 为空，会让解释退化成 "(seed song)"。
+        # 拿 track_id 走和其它曲一样的 Jamendo 补全，取回真实歌名/作者再填进解释。
+        if not display.get("title") and display.get("track_id"):
+            enriched = cyanite.enrich_meta([display])
+            if enriched:
+                display = enriched[0]
         for field in ("title", "artist"):
             if display.get(field):
                 explanation_example[field] = display[field]

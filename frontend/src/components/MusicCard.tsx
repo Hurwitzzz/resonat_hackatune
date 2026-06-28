@@ -221,7 +221,7 @@ const MusicCard = ({
                 <strong>commercial use is not permitted</strong> without a
                 separate license from Jamendo.
               </p>
-              <div className="mt-7 flex justify-end gap-3">
+              <div className="mt-7 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowLicense(false)}
@@ -233,7 +233,7 @@ const MusicCard = ({
                   href={downloadUrl}
                   download
                   onClick={() => setShowLicense(false)}
-                  className="font-display rounded-full border border-[var(--ink)] px-2.5 py-1 text-[11px] font-bold uppercase leading-none text-[var(--ink)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)]"
+                  className="font-display rounded-full border border-[var(--ink)] px-5 py-2.5 text-[14px] font-bold uppercase leading-none text-[var(--ink)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)]"
                 >
                   Download
                 </a>

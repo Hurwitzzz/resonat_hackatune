@@ -42,10 +42,10 @@ Explain:
 Keep why_text concise: 2-4 sentences, user-facing, non-technical unless the evidence needs a tag name.
 Write why_text as plain prose. Do not use any markdown: no asterisks, bold, bullet points, or headings (the UI renders raw text, so those symbols would show literally).
 When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track already in the listener's liked history.
-If recommendation_meta.source is "similar", the recommended_track was found by running an acoustic similarity search seeded on ONE specific song the listener liked. That seed song is the explanation_example. You MUST:
-  a) Name the seed song explicitly by its title and artist (from explanation_example.title / explanation_example.artist). Do not use the raw id, and do not refer to it vaguely as "a track you liked".
+If recommendation_meta.source is "similar", the recommended_track was found by running an acoustic similarity search seeded on ONE specific song the listener liked. That seed song is the explanation_example. This is NON-NEGOTIABLE — you MUST:
+  a) Open why_text by naming the seed song explicitly by its title and artist (from explanation_example.title / explanation_example.artist), e.g. start with "Because you liked <seed title> by <seed artist>, ...". The seed title AND artist must literally appear in why_text. Never use the raw id, and never refer to it vaguely as "a track you liked" or "your liked track".
   b) State plainly that recommended_track was surfaced by a similarity search run on that named seed song (e.g. "Because you liked <seed title> by <seed artist>, we searched for songs that sound like it and found <recommended title>").
-  c) Explain WHY the two songs sound alike, by comparing concrete shared Cyanite evidence between liked_track_cyanite_tags (the seed) and recommended_track_cyanite_tags (the recommendation) — name the moods, genres, instruments, energy, or BPM they have in common. Only cite tags actually present in the supplied data.
+  c) Only AFTER naming the seed song, explain WHY the two songs sound alike, by comparing concrete shared Cyanite evidence between liked_track_cyanite_tags (the seed) and recommended_track_cyanite_tags (the recommendation) — name the moods, genres, instruments, energy, or BPM they have in common. Only cite tags actually present in the supplied data.
 If recommendation_meta.source is "profile_semantic", explain why recommended_track is close to the supplied user_profile; do not claim it came from a specific liked track unless explanation_example is present.
 
 The "surprise" source is handled deterministically before this prompt is ever used, so you will not receive it here.
@@ -175,20 +175,22 @@ def build_explanation(profile_md: str,
     if recommendation_meta.get("source") == "surprise":
         return _surprise_explanation(profile_md, query_card, recommendation_meta)
     if not config.OPENAI_API_KEY:
-        return _fallback_explanation(query_card, recommendation_meta, explanation_example)
-    try:
-        return _explanation_from_openai(
-            profile_md,
-            query_card,
-            liked_track_tags,
-            recommended_track_tags,
-            recommendation_meta,
-            explanation_example,
-            recommended_track,
-        )
-    except Exception:
-        # OpenAI 不可用（429 退避用尽 / 超时 / 任何报错）→ 降级到确定性解释，绝不 500
-        return _fallback_explanation(query_card, recommendation_meta, explanation_example)
+        result = _fallback_explanation(query_card, recommendation_meta, explanation_example)
+    else:
+        try:
+            result = _explanation_from_openai(
+                profile_md,
+                query_card,
+                liked_track_tags,
+                recommended_track_tags,
+                recommendation_meta,
+                explanation_example,
+                recommended_track,
+            )
+        except Exception:
+            # OpenAI 不可用（429 退避用尽 / 超时 / 任何报错）→ 降级到确定性解释，绝不 500
+            result = _fallback_explanation(query_card, recommendation_meta, explanation_example)
+    return _ensure_seed_attribution(result, recommendation_meta, explanation_example)
 
 
 def _explanation_from_openai(profile_md: str,
@@ -346,6 +348,30 @@ def _fallback_explanation(query_card: dict,
         "why_text": f"This track fits your current search for {query}. {selection}{example_text}",
         "evidence": [{"source": "ranking", "detail": f"ranking_basis={ranking_basis}"}],
     }
+
+
+def _ensure_seed_attribution(result: dict,
+                             recommendation_meta: dict,
+                             explanation_example: dict | None) -> dict:
+    """similarById 卡的硬约束：why_text 必须点名种子歌的「歌名 by 作者」。
+
+    LLM 偶尔（fallback 文案也可能）漏掉种子曲名/作者，只泛泛说「a track you liked」。
+    这里做确定性兜底：source=='similar' 且拿得到种子标题时，若 why_text 里没出现种子标题，
+    就在最前面补一句明确的归因，保证用户永远看到「因为你喜欢 X by Y，我们才搜出这首」。"""
+    if recommendation_meta.get("source") != "similar" or not explanation_example:
+        return result
+    title = str(explanation_example.get("title", "")).strip()
+    artist = str(explanation_example.get("artist", "")).strip()
+    if not title:
+        return result
+    why = str(result.get("why_text", ""))
+    if title.lower() in why.lower():
+        return result
+    lead = (f"Because you liked {title} by {artist}, we searched for songs that sound like it"
+            if artist else
+            f"Because you liked {title}, we searched for songs that sound like it")
+    result["why_text"] = f"{lead}. {why}".strip()
+    return result
 
 
 def _source_liked_tracks(source: object) -> list[str]:
