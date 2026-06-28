@@ -70,3 +70,9 @@ export const explain = (session_id: string, track_id: string) =>
 
 export const yourSound = (user_id = "demo") =>
   fetch(`${BASE}/your-sound?user_id=${user_id}`).then((r) => r.json());
+
+export type FinishRoundResponse = { memory_md: string; liked: string[] };
+
+// 「完成本轮」：把这一轮选的歌落成「感觉」记忆，返回更新后的画像。
+export const finishRound = (session_id: string) =>
+  post<FinishRoundResponse>("/round/finish", { session_id });

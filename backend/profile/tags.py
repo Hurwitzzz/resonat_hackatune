@@ -9,6 +9,19 @@ def _iter(outputs):
         yield from outputs
 
 
+def _flat_tags(mo, thresh=0.2, topk=6):
+    """扁平 tag 列表，兼容两种 Cyanite 形态：汇总 `tags`，或分段 `segments`。
+    segments 形态在时间轴上对每个 key 取 max → 过阈值 → top-K，把几百个浮点
+    压成几个字符串——这是防上下文爆炸的根因处理（在摄入处缩减，不在喂处）。"""
+    if isinstance(mo.get("tags"), list):
+        return mo["tags"]
+    vals = (mo.get("segments") or {}).get("values") or {}
+    if not vals:
+        return []
+    scored = sorted(((k, max(v or [0.0])) for k, v in vals.items()), key=lambda kv: -kv[1])
+    return [k for k, m in scored if m >= thresh][:topk]
+
+
 def normalize(outputs) -> dict:
     t = {"moods": [], "genres": [], "instruments": [], "character": [],
          "movement": [], "bpm": None, "tempo": None, "valence": None,
@@ -20,15 +33,15 @@ def normalize(outputs) -> dict:
     for mo in _iter(outputs):
         v = mo.get("version")
         if v == "MoodSimpleV2":
-            t["moods"] = mo.get("tags") or []
+            t["moods"] = _flat_tags(mo, topk=4)
         elif v == "MainGenreV2":
-            t["genres"] = mo.get("tags") or []
+            t["genres"] = _flat_tags(mo, topk=3)
         elif v == "InstrumentsV2":
-            t["instruments"] = mo.get("tags") or []
+            t["instruments"] = _flat_tags(mo, topk=6)
         elif v == "CharacterV2":
-            t["character"] = mo.get("tags") or []
+            t["character"] = _flat_tags(mo, topk=4)
         elif v == "MovementV2":
-            t["movement"] = mo.get("tags") or []
+            t["movement"] = _flat_tags(mo, topk=3)
         elif v == "BpmV2":
             t["bpm"] = mo.get("tag")
         elif v == "TempoV1":

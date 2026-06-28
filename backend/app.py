@@ -117,6 +117,12 @@ def feedback(body: FeedbackIn):
     return _cards_view(_guard(orchestrator.feedback, body.session_id, body.track_id, body.verdict, body.mode))
 
 
+@app.post("/round/finish")
+def round_finish(body: ConfirmIn):
+    """用户点「完成本轮」：把这一轮选的歌落成「感觉」记忆，返回更新后的画像。"""
+    return _guard(orchestrator.finish_round, body.session_id)
+
+
 @app.post("/explain")
 def explain(body: ExplainIn):
     _require_cyanite_key()
