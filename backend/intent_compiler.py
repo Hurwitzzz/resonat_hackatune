@@ -48,6 +48,48 @@ CYANITE_VOCABULARY_GUIDE = """Cyanite vocabulary guide:
 - MusicForV1 examples: focus, work, study, background, night, nightDrive, cinematic, film, relaxation, reading, meditation, walk, city, drama.
 """
 
+QUERY_CARD_EXAMPLES = """Examples:
+
+Example A - initial note plus taste profile
+Whiteboard posts:
+1. initial_prompt: Find me something calm and cinematic for working late at night. I want soft piano or warm acoustic guitar, low energy, gentle rhythm, mostly instrumental, and a slightly hopeful mood.
+Taste profile:
+You often like warm acoustic textures, reflective background music, and low-energy instrumental tracks.
+Return:
+{
+  "interpretation_plain": "Because this is for late-night work, I will keep the search in focus/background territory: calm, quiet, low energy, and low vocal presence. Since you often lean toward warm acoustic textures, piano and acousticGuitar should lead without becoming distracting.",
+  "free_text_query": "calm quiet focus background night low energy low vocal presence instrumental piano acousticGuitar warm reflective hopeful steady",
+  "soft_targets": [
+    {"dim": "musicFor", "value": "focus", "weight": 0.9},
+    {"dim": "musicFor", "value": "background", "weight": 0.85},
+    {"dim": "mood", "value": "calm", "weight": 0.85},
+    {"dim": "energy", "value": "low", "weight": 0.8},
+    {"dim": "vocals", "value": "instrumental", "weight": 0.75}
+  ],
+  "negatives": [{"dim": "vocals", "value": "high vocal presence"}]
+}
+
+Example B - follow-up steering
+Whiteboard posts:
+1. initial_prompt: I want something calm and dreamy for reading.
+2. follow_up: Make it a little more energetic, but still not distracting.
+Taste profile:
+You often like ethereal ambient music, soft synths, and instrumental background tracks.
+Return:
+{
+  "interpretation_plain": "The follow-up shifts the target from purely calm reading music toward gentle momentum. I will keep it background-friendly and instrumental, but raise movement and energy slightly with ethereal synth textures.",
+  "free_text_query": "background reading calm dreamy ethereal instrumental synth mediumSlow medium energy gentle movement low vocal presence",
+  "soft_targets": [
+    {"dim": "musicFor", "value": "reading", "weight": 0.85},
+    {"dim": "mood", "value": "dreamy", "weight": 0.8},
+    {"dim": "movement", "value": "flowing", "weight": 0.7},
+    {"dim": "energy", "value": "medium", "weight": 0.6},
+    {"dim": "instrument", "value": "synth", "weight": 0.65}
+  ],
+  "negatives": [{"dim": "vocals", "value": "high vocal presence"}]
+}
+"""
+
 
 SYSTEM_PROMPT = f"""You compile a listener's whiteboard notes into a Cyanite free-text search query.
 
@@ -64,6 +106,8 @@ Rules:
 - negatives are things to down-rank, not hard filters.
 
 {CYANITE_VOCABULARY_GUIDE}
+
+{QUERY_CARD_EXAMPLES}
 """
 
 QUERY_CARD_SCHEMA = {
@@ -308,7 +352,10 @@ def _fallback_soft_targets(traits: list[str]) -> list[dict]:
 
 def _short_profile_hint(profile_md: str) -> str:
     words = re.findall(r"[A-Za-z][A-Za-z0-9-]*", profile_md)
-    return " ".join(words[:14])
+    hint = " ".join(words[:14])
+    hint = re.sub(r"\bUser often likes\b", "you often like", hint, flags=re.I)
+    hint = re.sub(r"\bUser likes\b", "you like", hint, flags=re.I)
+    return hint
 
 
 def _extract_output_text(payload: dict) -> str:

@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import Canvas from "../components/Canvas";
 import AddNoteButton from "../components/AddNoteButton";
+import IntentBriefTicker from "../components/IntentBriefTicker";
 import NoteCard from "../components/NoteCard";
 import Slogan from "../components/Slogan";
 import { useNotes } from "../context/NotesContext";
@@ -78,9 +79,7 @@ const StartPage = () => {
               <p className="font-sans mb-3 -rotate-2 text-[28px] font-semibold leading-none text-[var(--red)]">
                 We translated your note into a sound brief.
               </p>
-              <p className="font-serif text-[32px] italic leading-[1.2] text-[var(--paper)]">
-                {explanation}
-              </p>
+              <IntentBriefTicker text={explanation} />
             </div>
           ) : (
             <h1

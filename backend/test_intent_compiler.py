@@ -15,7 +15,7 @@ def test_fallback_compiles_posts_and_profile_without_openai_key(monkeypatch):
 
     card = intent_compiler.compile_query_card(
         POSTS,
-        "User often likes warm analog synths and low energy acoustic textures.",
+        "You often like warm analog synths and low energy acoustic textures.",
     )
 
     assert "night" in card["free_text_query"]
@@ -39,7 +39,7 @@ def test_fallback_interpretation_explains_inferred_work_music_traits(monkeypatch
                 "mostly instrumental, and a slightly hopeful mood."
             ),
         }],
-        "User often likes warm acoustic textures and reflective background music.",
+        "You often like warm acoustic textures and reflective background music.",
     )
 
     assert "background" in card["interpretation_plain"]
@@ -80,7 +80,7 @@ def test_openai_response_is_requested_as_query_card_json(monkeypatch):
 
     card = intent_compiler.compile_query_card(
         POSTS,
-        "User often likes warm analog synths.",
+        "You often like warm analog synths.",
     )
 
     assert captured["url"].endswith("/responses")
@@ -88,6 +88,8 @@ def test_openai_response_is_requested_as_query_card_json(monkeypatch):
     assert captured["json"]["model"] == "gpt-test"
     assert captured["json"]["text"]["format"]["name"] == "cyanite_query_card"
     assert "Cyanite vocabulary guide" in captured["json"]["instructions"]
+    assert "Example A - initial note plus taste profile" in captured["json"]["instructions"]
+    assert "Example B - follow-up steering" in captured["json"]["instructions"]
     assert "must not simply paraphrase" in captured["json"]["instructions"]
     user_input = captured["json"]["input"][0]["content"][0]["text"]
     assert "lonely night train scene" in user_input
@@ -140,7 +142,7 @@ def test_openai_paraphrase_interpretation_is_replaced_with_analysis(monkeypatch)
                 "mostly instrumental, and a slightly hopeful mood."
             ),
         }],
-        "User often likes warm acoustic textures and reflective background music.",
+        "You often like warm acoustic textures and reflective background music.",
     )
 
     assert captured["json"]["instructions"]
