@@ -42,7 +42,11 @@ Explain:
 Keep why_text concise: 2-4 sentences, user-facing, non-technical unless the evidence needs a tag name.
 Write why_text as plain prose. Do not use any markdown: no asterisks, bold, bullet points, or headings (the UI renders raw text, so those symbols would show literally).
 When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track already in the listener's liked history.
-If recommendation_meta.source is "similar", explain the shared musical evidence between recommended_track and explanation_example. If recommendation_meta.source is "profile_semantic", explain why recommended_track is close to the supplied user_profile; do not claim it came from a specific liked track unless explanation_example is present.
+If recommendation_meta.source is "similar", the recommended_track was found by running an acoustic similarity search seeded on ONE specific song the listener liked. That seed song is the explanation_example. You MUST:
+  a) Name the seed song explicitly by its title and artist (from explanation_example.title / explanation_example.artist). Do not use the raw id, and do not refer to it vaguely as "a track you liked".
+  b) State plainly that recommended_track was surfaced by a similarity search run on that named seed song (e.g. "Because you liked <seed title> by <seed artist>, we searched for songs that sound like it and found <recommended title>").
+  c) Explain WHY the two songs sound alike, by comparing concrete shared Cyanite evidence between liked_track_cyanite_tags (the seed) and recommended_track_cyanite_tags (the recommendation) — name the moods, genres, instruments, energy, or BPM they have in common. Only cite tags actually present in the supplied data.
+If recommendation_meta.source is "profile_semantic", explain why recommended_track is close to the supplied user_profile; do not claim it came from a specific liked track unless explanation_example is present.
 
 The "surprise" source is handled deterministically before this prompt is ever used, so you will not receive it here.
 """
@@ -250,6 +254,7 @@ def _build_user_prompt(profile_md: str,
         "explanation_example": explanation_example,
         "explanation_style_instruction": (
             "Explain recommended_track, not explanation_example. If explanation_example is present, use it only as a concrete previous liked-track example and compare shared Cyanite evidence. "
+            "When recommendation_meta.source is 'similar', explanation_example is the seed song the similarity search ran on: name it by title and artist, say recommended_track was found by searching for songs that sound like it, and explain the shared tags that make them similar. "
             "Use explanation_example.example_type to distinguish whether the example came from the current session or the listener's liked history. "
             "If it is null, do not claim the recommendation resembles a specific liked track; explain using the current prompt, profile, recommended-track tags, and ranking metadata instead."
         ),
@@ -259,9 +264,9 @@ def _build_user_prompt(profile_md: str,
 
 # 从画像里抽「贯穿的核心感觉」那行的头几个标签当 tag A；抽不到就退到频次光谱行；
 # 再抽不到就空（文案退化为「your usual taste」泛指）。
-_CORE_TASTE_RE = re.compile(r"贯穿的核心感觉[:：]\s*(.+)")
-_SPECTRUM_RE = re.compile(r"感觉光谱[^:：]*[:：]\s*(.+)")
-_TAG_SPLIT_RE = re.compile(r"[、,，]\s*")
+_CORE_TASTE_RE = re.compile(r"Core feel[^:]*:\s*(.+)", re.IGNORECASE)
+_SPECTRUM_RE = re.compile(r"Feel spectrum[^:]*:\s*(.+)", re.IGNORECASE)
+_TAG_SPLIT_RE = re.compile(r"[,，]\s*")
 
 
 def _dominant_taste_tags(profile_md: str, limit: int = 2) -> list[str]:
@@ -271,7 +276,7 @@ def _dominant_taste_tags(profile_md: str, limit: int = 2) -> list[str]:
         return []
     tags = []
     for raw in _TAG_SPLIT_RE.split(match.group(1).strip()):
-        tag = re.split(r"\s*[×x]\s*", raw.strip())[0].strip("*` ").strip()  # 去掉 "flowing ×12" 的计数
+        tag = re.split(r"\s*[×x]\s*", raw.strip())[0].strip("*` ").strip()  # strip "flowing x12" count suffixes
         if tag:
             tags.append(tag)
         if len(tags) >= limit:

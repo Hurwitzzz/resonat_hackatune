@@ -1,6 +1,6 @@
 # evidence · demo
 
-## 反馈记录
+## Feedback log
 - 「dark betrayal」→ liked t1   (2026-06-27T16:40:28)
 - 「I want a music combining the style of jazz and classical piano music.」→ liked libtr_01KVXEBNTJY61AW5H2   (2026-06-28T00:44:31)
 - 「pls give me a piece combining jazz and classical piano music; add blues style」→ liked libtr_01KVXCN97NS1QNFQ5R   (2026-06-28T00:47:41)
@@ -63,3 +63,9 @@
 - 👍 `libtr_01KVWW9PBXYFCZ227Z` · 「dog」 · feel: chill, mysterious, sparkling, magical, ethereal, playful, robotic, pulsing, steady, running · 2026-06-28T08:20:33
 - 👍 `libtr_01KVXDHJK4RSC2DGJC` · 「dog」 · feel: chill, sparkling, flowing, groovy · 2026-06-28T08:20:33
 - 👍 `libtr_01KVX8NEW2YSV9F9JK` · 「dog」 · feel: calm, ethereal, chill, sparkling, warm, flowing, pulsing · 2026-06-28T08:20:33
+- 👍 `libtr_01KVX8TT5X5JW3ZZN4` · 「classical jazz; swing; violin」 · feel: romantic, chill, sophisticated, cool, flowing · 2026-06-28T08:46:52
+- 👍 `libtr_01KVWTT139KXW690Y3` · 「nice」 · feel: chill, warm, sophisticated, luxurious, cool, ethereal, mysterious, flowing, groovy · 2026-06-28T09:07:10
+- 👍 `libtr_01KVWYR64TP8R0Y9K8` · 「nice」 · feel: chill, ethereal, cool, warm, flowing, groovy · 2026-06-28T09:07:10
+- 👍 `libtr_01KVWZ46RSXQW19B28` · 「nice」 · feel: chill, ethereal, cool, warm, flowing, groovy · 2026-06-28T09:07:10
+- 👍 `libtr_01KVX9F60WNA1VZ4G6` · 「nice」 · feel: ethereal, calm, flowing · 2026-06-28T09:07:10
+- 👍 `libtr_01KVX9F5T4WFD0V7QE` · 「nice」 · feel: ethereal, calm, flowing · 2026-06-28T09:07:10

@@ -80,7 +80,7 @@ def interpret(posts: list[dict], profile_md: str = "") -> str:
     """① 解读阶段：返回给用户看的 ~200字 精简解读。"""
     if not config.OPENAI_API_KEY:
         return f"I understand the target as: {_join(posts, profile_md)}"
-    payload = _responses(_render("interpret", posts, profile_md), "现在给出解读。")
+    payload = _responses(_render("interpret", posts, profile_md), "Give the interpretation now.")
     return _plain(_output_text(payload))
 
 
@@ -90,7 +90,7 @@ def search_args(posts: list[dict], profile_md: str = "") -> dict:
         return {"query": _join(posts, profile_md), "metadata_filter": None}
     payload = _responses(
         _render("search", posts, profile_md),
-        "用户已确认，现在发起检索。",
+        "User confirmed. Fire the search now.",
         tools=[_SEARCH_TOOL],
         tool_choice={"type": "function", "name": "search_by_prompt"},
     )
@@ -107,7 +107,7 @@ def sounds_like_you_args(profile_md: str = "") -> dict | None:
     if not config.OPENAI_API_KEY or not profile_md.strip():
         return None
     instructions = _SOUNDS_LIKE_YOU_PROMPT.replace("{{user_profile}}", profile_md.strip())
-    payload = _responses(instructions, "为「听起来像你」专属位发起一次检索。",
+    payload = _responses(instructions, "Fire one search for the Sounds Like You dedicated slot.",
                          tools=[_SEARCH_TOOL],
                          tool_choice={"type": "function", "name": "search_by_prompt"})
     args = _tool_call_args(payload)
@@ -124,7 +124,7 @@ def surprise_args(posts: list[dict], profile_md: str = "") -> dict | None:
                     .replace("{{history}}", history)
                     .replace("{{user_profile}}", profile_md.strip())
                     .replace("{{request}}", request))
-    payload = _responses(instructions, "为惊喜位发起一次检索。",
+    payload = _responses(instructions, "Fire one search for the surprise slot.",
                          tools=[_SEARCH_TOOL],
                          tool_choice={"type": "function", "name": "search_by_prompt"})
     args = _tool_call_args(payload)

@@ -482,7 +482,7 @@ const ResultsPage = () => {
             disabled={isFinishingRound}
             className="font-display mt-10 flex min-h-11 items-center gap-2 rounded-full border-[2.5px] border-solid border-[var(--paper)] px-6 py-3 text-[16px] font-bold uppercase leading-[1.4] text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)] disabled:opacity-60"
           >
-            {isFinishingRound ? "saving your feel..." : "完成本轮 · save my feel"}
+            {isFinishingRound ? "saving your feel..." : "Finish this Round · save my feel"}
           </button>
         )}
 
