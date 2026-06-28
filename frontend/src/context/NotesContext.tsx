@@ -7,7 +7,12 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import type { Note } from "../types";
-import type { ExplanationResponse, QueryCard, RecommendationCard } from "../api";
+import type {
+  ExplanationResponse,
+  FeedbackMode,
+  QueryCard,
+  RecommendationCard,
+} from "../api";
 import { confirm, explain, feedback, intent } from "../api";
 
 const joinNotes = (notes: Note[]): string =>
@@ -31,9 +36,16 @@ interface NotesContextValue {
   card: QueryCard | null;
   sessionId: string | null;
   cards: RecommendationCard[];
+  likedCards: RecommendationCard[];
   isLoadingCards: boolean;
+  cardsError: string;
   confirmSound: () => Promise<boolean>;
-  sendFeedback: (trackId: string, verdict: "like" | "dislike") => Promise<void>;
+  sendFeedback: (
+    trackId: string,
+    verdict: "like" | "dislike",
+    mode?: FeedbackMode,
+  ) => Promise<void>;
+  unlikeTrack: (trackId: string) => void;
   explainTrack: (trackId: string) => Promise<ExplanationResponse>;
   explanationsByTrackId: Record<string, ExplanationResponse>;
   addNote: () => void;
@@ -50,7 +62,9 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   const [card, setCard] = useState<QueryCard | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [cards, setCards] = useState<RecommendationCard[]>([]);
+  const [likedCards, setLikedCards] = useState<RecommendationCard[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(false);
+  const [cardsError, setCardsError] = useState("");
   const [explanationsByTrackId, setExplanationsByTrackId] = useState<
     Record<string, ExplanationResponse>
   >({});
@@ -81,6 +95,8 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       setExplanation("");
       setSessionId(null);
       setCards([]);
+      setLikedCards([]);
+      setCardsError("");
       setExplanationsByTrackId({});
       return null;
     }
@@ -89,6 +105,8 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       setSessionId(result.session_id);
       setCard(result.query_card);
       setCards([]);
+      setLikedCards([]);
+      setCardsError("");
       setExplanationsByTrackId({});
       setExplanation(result.query_card.interpretation_plain);
       return result.session_id;
@@ -107,36 +125,56 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     }
     if (!activeSessionId) return false;
     setIsLoadingCards(true);
+    setCardsError("");
     try {
       const result = await confirm(activeSessionId);
       setCards(result.cards);
       return result.cards.length > 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load recommendations.";
+      setCards([]);
+      setCardsError(message);
+      throw new Error(message);
     } finally {
       setIsLoadingCards(false);
     }
   };
 
-  const sendFeedback = async (trackId: string, verdict: "like" | "dislike") => {
+  const sendFeedback = async (
+    trackId: string,
+    verdict: "like" | "dislike",
+    mode: FeedbackMode = "normal",
+  ) => {
     if (!sessionId) return;
-    const result = await feedback(sessionId, trackId, verdict);
-    if (verdict === "like") return;
-    setCards((prev) => {
-      const previousIds = new Set(prev.map((card) => card.cyanite_id));
-      const refill = result.cards.find((card) => !previousIds.has(card.cyanite_id));
-      if (!refill) {
-        return prev.filter((card) => card.cyanite_id !== trackId && card.track_id !== trackId);
-      }
-      return prev.map((card) =>
-        card.cyanite_id === trackId || card.track_id === trackId ? refill : card,
+    if (verdict === "like") {
+      const liked = cards.find(
+        (card) => card.cyanite_id === trackId || card.track_id === trackId,
       );
-    });
-    if (verdict === "dislike") {
+      if (liked) {
+        setLikedCards((prev) =>
+          prev.some((card) => card.cyanite_id === liked.cyanite_id)
+            ? prev
+            : [...prev, liked],
+        );
+      }
+    }
+    const result = await feedback(sessionId, trackId, verdict, mode);
+    setCards(result.cards);
+    if (verdict === "dislike" || mode === "normal") {
       setExplanationsByTrackId((prev) => {
         const next = { ...prev };
         delete next[trackId];
         return next;
       });
     }
+  };
+
+  const unlikeTrack = (trackId: string) => {
+    setLikedCards((prev) =>
+      prev.filter(
+        (card) => card.cyanite_id !== trackId && card.track_id !== trackId,
+      ),
+    );
   };
 
   const explainTrack = async (trackId: string) => {
@@ -169,6 +207,8 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     );
     setSessionId(null);
     setCards([]);
+    setLikedCards([]);
+    setCardsError("");
     setExplanationsByTrackId({});
     // Finish editing if the user stops typing for 3 seconds.
     clearIdleTimer();
@@ -183,9 +223,12 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     card,
     sessionId,
     cards,
+    likedCards,
     isLoadingCards,
+    cardsError,
     confirmSound,
     sendFeedback,
+    unlikeTrack,
     explainTrack,
     explanationsByTrackId,
     addNote,

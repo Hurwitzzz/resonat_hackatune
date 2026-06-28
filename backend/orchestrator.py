@@ -49,7 +49,7 @@ def _recompile(s: dict) -> None:
 
 
 def _card(cyanite_id: str, score: float, source: str) -> dict:
-    """统一的推荐卡。source ∈ {'free_text','similar'}；score 是主信号分。"""
+    """统一的推荐卡。source ∈ {'free_text','similar','profile_semantic'}；score 是主信号分。"""
     d = cyanite.display(cyanite_id)
     return {
         "track_id": d.get("track_id", ""),
@@ -79,6 +79,84 @@ def _visible_card(s: dict, cyanite_id: str) -> dict:
     raise SessionNotFound(cyanite_id)
 
 
+def _remove_visible(s: dict, cyanite_id: str) -> None:
+    s["visible_cards"] = [
+        c for c in s["visible_cards"]
+        if c["cyanite_id"] != cyanite_id and c["track_id"] != cyanite_id
+    ]
+
+
+def _record_like(s: dict, cyanite_id: str) -> None:
+    if cyanite_id not in s["liked_tracks"]:
+        s["liked_tracks"].append(cyanite_id)
+    # ⑦ 落记忆：证据追加（以最后确认的 prompt 为根基）+ 画像重写（接缝在 memory 模块）
+    memory.append_evidence(s["user_id"], _final_prompt(s), [cyanite_id])
+    memory.rewrite_memory(s["user_id"])
+
+
+def _set_single_seed_pool(s: dict, cyanite_id: str) -> None:
+    rows = cyanite.find_similar(cyanite_id, limit=config.SIMILAR_LIMIT)
+    s["candidate_pool"] = [{
+        "cyanite_id": r["cyanite_id"],
+        "source_liked_track": cyanite_id,
+        "similar_score": r["score"],
+        "prompt_match_score": None,
+        "status": "candidate",
+    } for r in rows]
+    s["pool_sig"] = tuple(s["liked_tracks"])
+
+
+def _card_from_candidate(candidate: dict, source: str) -> dict | None:
+    card = _card(candidate["cyanite_id"], candidate["final_score"], source)
+    card.update({
+        "source_liked_track": candidate.get("source_liked_track"),
+        "similar_score": candidate.get("similar_score"),
+        "final_score": candidate.get("final_score"),
+        "ranking_basis": candidate.get("ranking_basis"),
+    })
+    enriched = cyanite.enrich_meta([card])
+    return enriched[0] if enriched else None
+
+
+def _best_similar_refill(s: dict) -> dict | None:
+    best = rerank.rank_refill_candidates(
+        s["candidate_pool"],
+        visible_ids=_visible_ids(s),
+        disliked_ids=set(s["disliked_tracks"]) | set(s["liked_tracks"]),
+    )
+    if not best:
+        return None
+    s["candidate_pool"] = [p for p in s["candidate_pool"] if p["cyanite_id"] != best["cyanite_id"]]
+    return _card_from_candidate(best, "similar")
+
+
+def _profile_refill(s: dict) -> dict | None:
+    profile_text = memory.read_memory(s["user_id"]).strip()
+    query = (
+        profile_text
+        or s["query_card"].get("free_text_query")
+        or s["query_card"].get("interpretation_plain")
+        or _final_prompt(s)
+    )
+    rows = cyanite.search_by_prompt(query, limit=config.PROFILE_REFILL_LIMIT)
+    excluded = _visible_ids(s) | set(s["disliked_tracks"]) | set(s["liked_tracks"])
+    for row in rows:
+        cid = row["cyanite_id"]
+        if cid in excluded:
+            continue
+        card = _card(cid, row["score"], "profile_semantic")
+        card.update({
+            "prompt_match_score": row["score"],
+            "final_score": row["score"],
+            "ranking_basis": "profile_semantic_search",
+            "profile_query": query,
+        })
+        enriched = cyanite.enrich_meta([card])
+        if enriched:
+            return enriched[0]
+    return None
+
+
 def _expand_pool(s: dict) -> None:
     """按当前 liked 集合搜相似候选，重建 candidate_pool。
     - liked 集合没变 → 直接复用，不重复打 API。
@@ -102,16 +180,9 @@ def _backfill(s: dict) -> dict | None:
     再挑 score 最高、未被踩、未在列表的那首；没有 liked 种子则用 freeText backlog 补位。"""
     if s["liked_tracks"]:
         _expand_pool(s)
-        best = rerank.rank_refill_candidates(
-            s["candidate_pool"],
-            visible_ids=_visible_ids(s),
-            disliked_ids=set(s["disliked_tracks"]),
-        )
-        if best:
-            s["candidate_pool"] = [p for p in s["candidate_pool"] if p["cyanite_id"] != best["cyanite_id"]]
-            enriched = cyanite.enrich_meta([_card(best["cyanite_id"], best["final_score"], "similar")])
-            if enriched:  # 拿不到名字就跳过这首，继续往下补
-                return enriched[0]
+        fill = _best_similar_refill(s)
+        if fill:
+            return fill
     if s["free_text_backlog"]:
         return s["free_text_backlog"].pop(0)  # backlog 已在 confirm 里 enrich 过
     return None
@@ -160,22 +231,25 @@ def confirm(session_id: str) -> dict:
     return s
 
 
-def feedback(session_id: str, track_id: str, verdict: str) -> dict:
-    """⑤ like → 只记为 liked 种子 + 落记忆，不搜索、不动列表；
-       dislike → 移除该曲 → 用 liked 种子搜相似回填一格。最后薄重排。"""
+def feedback(session_id: str, track_id: str, verdict: str, mode: str = "normal") -> dict:
+    """⑤ normal like → 记 liked + 划走 + 用该曲相似回填；
+       anti_addiction like → 只记 liked，不动列表；
+       dislike → 移除该曲，普通模式按 liked 相似回填，防沉迷按用户画像语义回填。"""
     s = _get(session_id)
-    cid = track_id  # 推荐卡里 track_id 暴露的就是 cyanite_id 来源；见 _card
+    card = _visible_card(s, track_id)
+    cid = card["cyanite_id"]
     if verdict == "like":
-        if cid not in s["liked_tracks"]:
-            s["liked_tracks"].append(cid)
-        # ⑦ 落记忆：证据追加（以最后确认的 prompt 为根基）+ 画像重写（接缝在 memory 模块）
-        memory.append_evidence(s["user_id"], _final_prompt(s), [cid])
-        memory.rewrite_memory(s["user_id"])
-        # 不跑任何检索，visible_cards 不动
+        _record_like(s, cid)
+        if mode != "anti_addiction":
+            _remove_visible(s, cid)
+            _set_single_seed_pool(s, cid)
+            fill = _best_similar_refill(s)
+            if fill:
+                s["visible_cards"].append(fill)
     elif verdict == "dislike":
         s["disliked_tracks"][cid] = True
-        s["visible_cards"] = [c for c in s["visible_cards"] if c["cyanite_id"] != cid]
-        fill = _backfill(s)  # similarById 只在这里、由 dislike 触发
+        _remove_visible(s, cid)
+        fill = _profile_refill(s) if mode == "anti_addiction" else _backfill(s)
         if fill:
             s["visible_cards"].append(fill)
     s["visible_cards"] = rerank.thin_rerank(s["visible_cards"])  # ⑥
@@ -208,13 +282,21 @@ def explain(session_id: str, track_id: str) -> dict:
     recommendation_meta = {
         "source": card.get("source"),
         "score": card.get("score"),
-        "ranking_basis": "visible_card_score",
+        "ranking_basis": card.get("ranking_basis") or "visible_card_score",
     }
+    for field in ("source_liked_track", "similar_score", "final_score", "prompt_match_score", "profile_query"):
+        if card.get(field) is not None:
+            recommendation_meta[field] = card[field]
     explanation_example = explanation_builder.select_explanation_example(
         s["liked_tracks"],
         recommendation_meta,
         historical_candidates=historical_candidates,
     )
+    if explanation_example:
+        display = cyanite.display(explanation_example["track_id"])
+        for field in ("title", "artist"):
+            if display.get(field):
+                explanation_example[field] = display[field]
     liked_tags = {}
     if explanation_example:
         liked_tags = cyanite.model_tags(explanation_example["track_id"], config.EXPLAIN_TAG_MODELS)

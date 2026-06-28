@@ -45,6 +45,7 @@ class FeedbackIn(BaseModel):
     session_id: str
     track_id: str
     verdict: str  # "like" | "dislike"
+    mode: str = "normal"  # "normal" | "anti_addiction"
 
 
 class ExplainIn(BaseModel):
@@ -63,7 +64,9 @@ def _board_view(s: dict) -> dict:
 
 
 def _cards_view(s: dict) -> dict:
-    return {"cards": s["visible_cards"], "candidate_pool_size": len(s["candidate_pool"])}
+    fields = ("track_id", "cyanite_id", "title", "artist", "source", "score", "why")
+    cards = [{k: c[k] for k in fields if k in c} for c in s["visible_cards"]]
+    return {"cards": cards, "candidate_pool_size": len(s["candidate_pool"])}
 
 
 def _guard(fn, *args):
@@ -71,6 +74,19 @@ def _guard(fn, *args):
         return fn(*args)
     except orchestrator.SessionNotFound:
         raise HTTPException(404, "unknown session_id")
+    except requests.HTTPError as e:
+        resp = e.response
+        code = resp.status_code if resp is not None else 502
+        hint = "（检查 CYANITE_API_KEY 是否已设置且有效）" if code == 401 else ""
+        raise HTTPException(code, f"Cyanite {code}{hint}")
+
+
+def _require_cyanite_key() -> None:
+    if not config.CYANITE_API_KEY:
+        raise HTTPException(
+            503,
+            "CYANITE_API_KEY is missing. Create repo-root .env and set CYANITE_API_KEY.",
+        )
 
 
 # ─────────── 路由 ───────────
@@ -91,16 +107,19 @@ def follow_up(body: FollowUpIn):
 
 @app.post("/intent/confirm")
 def confirm(body: ConfirmIn):
+    _require_cyanite_key()
     return _cards_view(_guard(orchestrator.confirm, body.session_id))
 
 
 @app.post("/feedback")
 def feedback(body: FeedbackIn):
-    return _cards_view(_guard(orchestrator.feedback, body.session_id, body.track_id, body.verdict))
+    _require_cyanite_key()
+    return _cards_view(_guard(orchestrator.feedback, body.session_id, body.track_id, body.verdict, body.mode))
 
 
 @app.post("/explain")
 def explain(body: ExplainIn):
+    _require_cyanite_key()
     return _guard(orchestrator.explain, body.session_id, body.track_id)
 
 

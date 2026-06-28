@@ -32,14 +32,20 @@ interface FanCard {
 
 interface PlaylistFanProps {
   tracks?: SampleTrack[];
+  antiAddiction?: boolean;
+  likedIds?: Set<string>;
   onLike?: (track: SampleTrack) => Promise<void> | void;
+  onUnlike?: (track: SampleTrack) => void;
   onDismiss?: (track: SampleTrack) => Promise<void> | void;
   onExplain?: (track: SampleTrack) => Promise<string>;
 }
 
 const PlaylistFan = ({
   tracks = SAMPLE_TRACKS.slice(0, SLOTS.length),
+  antiAddiction = false,
+  likedIds,
   onLike,
+  onUnlike,
   onDismiss,
   onExplain,
 }: PlaylistFanProps) => {
@@ -144,7 +150,11 @@ const PlaylistFan = ({
     if (!modalOpenRef.current) stop();
   };
 
-  const dismiss = (slotIndex: number, track: SampleTrack) => {
+  const removeCard = (
+    slotIndex: number,
+    track: SampleTrack,
+    afterRemove?: (track: SampleTrack) => Promise<void> | void,
+  ) => {
     setHovered(null);
     clearHoverTimer();
     stop();
@@ -156,13 +166,30 @@ const PlaylistFan = ({
 
     const timer = window.setTimeout(() => {
       replaceTimers.current = replaceTimers.current.filter((id) => id !== timer);
-      void onDismiss?.(track);
+      void afterRemove?.(track);
     }, REPLACE_CARD_DELAY_MS);
     replaceTimers.current.push(timer);
   };
 
+  const dismiss = (slotIndex: number, track: SampleTrack) => {
+    removeCard(slotIndex, track, onDismiss);
+  };
+
+  const like = (slotIndex: number, track: SampleTrack, liked: boolean) => {
+    if (!liked) {
+      onUnlike?.(track);
+      return;
+    }
+    if (antiAddiction) {
+      void onLike?.(track);
+      return;
+    }
+    removeCard(slotIndex, track, onLike);
+  };
+
   const openTrack = (track: SampleTrack) => {
     modalOpenRef.current = true;
+    play(track.id);
     setSelected(track);
     setSelectedReason("");
     setIsReasonLoading(true);
@@ -233,6 +260,7 @@ const PlaylistFan = ({
                       artist={card.track.artist}
                       cover={card.track.cover}
                       isPlaying={playingId === card.track.id}
+                      liked={likedIds?.has(card.track.id) ?? false}
                       surprise={i === SURPRISE_SLOT}
                       downloadUrl={
                         (card.track.trackId ?? card.track.id).match(/^\d+$/)
@@ -241,7 +269,7 @@ const PlaylistFan = ({
                       }
                       onOpen={() => openTrack(card.track)}
                       onLike={(liked) => {
-                        if (liked) void onLike?.(card.track);
+                        like(i, card.track, liked);
                       }}
                       onDismiss={() => dismiss(i, card.track)}
                     />

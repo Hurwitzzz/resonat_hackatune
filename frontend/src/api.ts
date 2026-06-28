@@ -18,7 +18,7 @@ export type RecommendationCard = {
   cyanite_id: string;
   title: string;
   artist: string;
-  source: string;
+  source: "free_text" | "similar" | "profile_semantic" | string;
   score: number;
   why?: string;
 };
@@ -37,7 +37,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`${path} → ${r.status}`);
+  if (!r.ok) {
+    let detail = "";
+    try {
+      const body = (await r.json()) as { detail?: unknown };
+      detail = typeof body.detail === "string" ? body.detail : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail || `${path} -> ${r.status}`);
+  }
   return r.json();
 }
 
@@ -47,8 +56,14 @@ export const intent = (text: string, user_id = "demo") =>
 export const confirm = (session_id: string) =>
   post<CardsResponse>("/intent/confirm", { session_id });
 
-export const feedback = (session_id: string, track_id: string, verdict: "like" | "dislike") =>
-  post<CardsResponse>("/feedback", { session_id, track_id, verdict });
+export type FeedbackMode = "normal" | "anti_addiction";
+
+export const feedback = (
+  session_id: string,
+  track_id: string,
+  verdict: "like" | "dislike",
+  mode: FeedbackMode = "normal",
+) => post<CardsResponse>("/feedback", { session_id, track_id, verdict, mode });
 
 export const explain = (session_id: string, track_id: string) =>
   post<ExplanationResponse>("/explain", { session_id, track_id });

@@ -7,6 +7,7 @@ interface MusicCardProps {
   artist: string;
   cover?: string;
   isPlaying?: boolean;
+  liked?: boolean;
   surprise?: boolean;
   downloadUrl?: string;
   onOpen?: () => void;
@@ -67,14 +68,16 @@ const MusicCard = ({
   artist,
   cover,
   isPlaying = false,
+  liked: likedProp,
   surprise = false,
   downloadUrl,
   onOpen,
   onLike,
   onDismiss,
 }: MusicCardProps) => {
-  const [liked, setLiked] = useState(false);
+  const [localLiked, setLocalLiked] = useState(false);
   const [showLicense, setShowLicense] = useState(false);
+  const liked = likedProp ?? localLiked;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -92,7 +95,7 @@ const MusicCard = ({
   const handleLike = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const next = !liked;
-    setLiked(next);
+    setLocalLiked(next);
     if (next) {
       const rect = event.currentTarget.getBoundingClientRect();
       particleBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);

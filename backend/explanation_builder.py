@@ -42,6 +42,7 @@ Explain:
 Keep why_text concise: 2-4 sentences, user-facing, non-technical unless the evidence needs a tag name.
 Write why_text as plain prose. Do not use any markdown: no asterisks, bold, bullet points, or headings (the UI renders raw text, so those symbols would show literally).
 When explanation_example is present, mention it as a concrete liked-track example. If it has title/artist fields, use them instead of an opaque id. If explanation_example.example_type is "session_source", say it was liked earlier in this session. If it is "historical_like", say it connects back to a track already in the listener's liked history.
+If recommendation_meta.source is "similar", explain the shared musical evidence between recommended_track and explanation_example. If recommendation_meta.source is "profile_semantic", explain why recommended_track is close to the supplied user_profile; do not claim it came from a specific liked track unless explanation_example is present.
 """
 
 EXPLANATION_SCHEMA = {
@@ -231,6 +232,17 @@ def _fallback_explanation(query_card: dict,
     query = query_card.get("free_text_query") or query_card.get("interpretation_plain") or "your current search"
     score = recommendation_meta.get("final_score", recommendation_meta.get("similar_score"))
     score_text = f" with score {score:.2f}" if isinstance(score, int | float) else ""
+    if recommendation_meta.get("source") == "profile_semantic":
+        return {
+            "why_text": (
+                f"This track is close to your user profile while still fitting your current search for {query}. "
+                f"It was selected by a semantic search over your taste memory{score_text}, so the match comes from the profile you have built through feedback."
+            ),
+            "evidence": [{
+                "source": "ranking",
+                "detail": f"ranking_basis={recommendation_meta.get('ranking_basis', 'profile_semantic_search')}",
+            }],
+        }
     example_text = ""
     if explanation_example:
         label = _example_label(explanation_example)

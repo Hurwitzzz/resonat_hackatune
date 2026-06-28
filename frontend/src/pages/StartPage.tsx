@@ -19,6 +19,7 @@ const StartPage = () => {
     finishEditing,
     confirmSound,
     isLoadingCards,
+    cardsError,
   } = useNotes();
   const [toast, setToast] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -49,9 +50,15 @@ const StartPage = () => {
       showToast("Add a memo first to describe the music you want.");
       return;
     }
-    const hasCards = await confirmSound();
+    let hasCards = false;
+    try {
+      hasCards = await confirmSound();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "I couldn't find tracks yet. Try again in a moment.");
+      return;
+    }
     if (!hasCards) {
-      showToast("I couldn't find tracks yet. Try again in a moment.");
+      showToast(cardsError || "I couldn't find tracks yet. Try again in a moment.");
       return;
     }
     if (!document.startViewTransition) {
