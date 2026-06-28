@@ -223,6 +223,23 @@ def test_fallback_explanation_is_grounded_and_english(monkeypatch):
     assert result["evidence"][0]["source"] == "ranking"
 
 
+def test_fallback_prompt_pool_track_does_not_claim_similarity(monkeypatch):
+    # 没 source_liked_track 的 free_text 卡（首批 / backlog 兜底）不能瞎说「来自你喜欢的歌附近」。
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "", raising=False)
+    result = explanation_builder.build_explanation(
+        "The listener likes calm, dark, low-energy music.",
+        QUERY_CARD,
+        LIKED_TAGS,
+        RECOMMENDED_TAGS,
+        {"source": "free_text", "score": 0.8, "ranking_basis": "visible_card_score"},
+        None,
+        RECOMMENDED_TRACK,
+    )
+    assert "Cyanite acoustic similarity" not in result["why_text"]
+    assert "near your liked tracks" not in result["why_text"]
+    assert "your search brief" in result["why_text"]
+
+
 def test_openai_explanation_request_contains_grounding_inputs(monkeypatch):
     captured = {}
     monkeypatch.setattr(config, "OPENAI_API_KEY", "sk-test", raising=False)

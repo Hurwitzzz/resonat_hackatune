@@ -329,16 +329,17 @@ def _fallback_explanation(query_card: dict,
             example_text = f" It is close enough to a track already in your liked history ({label}) to use that as a concrete taste example."
         else:
             example_text = f" It is close enough to a track you liked earlier in this session ({label}) to use that as a concrete taste example."
+    # 只有真从某首 liked 种子搜出来的（带 source_liked_track）才能说「来自你喜欢的歌附近」；
+    # prompt 召回的 free_text 卡（首批 / backlog 兜底）没有种子，只能说它直接匹配检索 brief，不能瞎认相似。
+    if recommendation_meta.get("source_liked_track"):
+        selection = f"It was selected from music near your liked tracks using Cyanite acoustic similarity{score_text}."
+        ranking_basis = recommendation_meta.get("ranking_basis", "similar_score_fallback")
+    else:
+        selection = f"It was retrieved directly from your search brief by Cyanite semantic search{score_text}."
+        ranking_basis = recommendation_meta.get("ranking_basis", "free_text_search")
     return {
-        "why_text": (
-            f"This track fits your current search for {query}. "
-            f"It was selected from music near your liked tracks using Cyanite acoustic similarity{score_text}."
-            f"{example_text}"
-        ),
-        "evidence": [{
-            "source": "ranking",
-            "detail": f"ranking_basis={recommendation_meta.get('ranking_basis', 'similar_score_fallback')}",
-        }],
+        "why_text": f"This track fits your current search for {query}. {selection}{example_text}",
+        "evidence": [{"source": "ranking", "detail": f"ranking_basis={ranking_basis}"}],
     }
 
 
