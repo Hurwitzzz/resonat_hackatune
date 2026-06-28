@@ -53,11 +53,16 @@ const LikedSongsShelf = ({
   if (tracks.length === 0) return null;
 
   return (
-    <section className="mt-5 flex min-h-0 flex-1 flex-col border-t border-[var(--color-border)] pt-4 md:max-h-[calc(100vh-390px)]">
-      <h3 className="font-display text-[14px] font-bold uppercase leading-none text-[var(--paper)] opacity-70">
-        liked songs
-      </h3>
-      <div className="mt-3 flex min-h-0 flex-col gap-2 overflow-y-auto pr-1">
+    <section className="mt-5 flex min-h-0 flex-col rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.045)] p-3 md:flex-1">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] pb-3">
+        <h3 className="font-display text-[14px] font-bold uppercase leading-none text-[var(--paper)] opacity-80">
+          liked songs
+        </h3>
+        <span className="font-display text-[12px] font-bold leading-none text-[var(--paper)] opacity-45">
+          {tracks.length}
+        </span>
+      </div>
+      <div className="mt-3 flex max-h-64 min-h-0 flex-col gap-2 overflow-y-auto pr-1 md:max-h-none">
         {tracks.map((track) => {
           const numericTrackId = (track.trackId ?? track.id).match(/^\d+$/)
             ? track.trackId ?? track.id
@@ -66,7 +71,7 @@ const LikedSongsShelf = ({
           return (
             <article
               key={track.id}
-              className="grid grid-cols-[44px_1fr] gap-3 rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.06)] p-2"
+              className="grid grid-cols-[44px_1fr] gap-3 rounded-[6px] bg-[rgba(229,225,214,.07)] p-2"
             >
               <img
                 src={track.cover}
@@ -214,31 +219,33 @@ const ResultsPage = () => {
       <GrainientBackground />
 
       {/* Left panel — the shrunk taste board. */}
-      <aside className="relative z-10 flex w-full shrink-0 flex-col overflow-y-auto border-b border-[var(--color-border)] p-5 md:h-screen md:w-96 md:border-b-0 md:border-r">
-        <h2 className="font-display mb-5 text-[24px] font-bold uppercase leading-none text-[var(--paper)]">
-          Your taste board
-        </h2>
+      <aside className="relative z-10 flex w-full shrink-0 flex-col overflow-y-auto border-b border-[var(--color-border)] p-5 md:h-screen md:w-96 md:overflow-hidden md:border-b-0 md:border-r">
+        <section className="shrink-0 border-b border-[var(--color-border)] pb-6">
+          <h2 className="font-display mb-5 text-[24px] font-bold uppercase leading-none text-[var(--paper)]">
+            Your taste board
+          </h2>
 
-        {/* Draggable-free card stack of the brief's memos (click to cycle). */}
-        {filledNotes.length > 0 && (
-          <div className="mx-auto h-[210px] w-full max-w-[280px]">
-            <Stack
-              randomRotation
-              sendToBackOnClick
-              cards={filledNotes.map((note, index) => (
-                <NoteCard
-                  key={note.id}
-                  note={note}
-                  index={index}
-                  widthClass="w-full"
-                  fill
-                  readOnly
-                  viewTransitionName={`note-${note.id}`}
-                />
-              ))}
-            />
-          </div>
-        )}
+          {/* Draggable-free card stack of the brief's memos (click to cycle). */}
+          {filledNotes.length > 0 && (
+            <div className="mx-auto h-[210px] w-full max-w-[280px]">
+              <Stack
+                randomRotation
+                sendToBackOnClick
+                cards={filledNotes.map((note, index) => (
+                  <NoteCard
+                    key={note.id}
+                    note={note}
+                    index={index}
+                    widthClass="w-full"
+                    fill
+                    readOnly
+                    viewTransitionName={`note-${note.id}`}
+                  />
+                ))}
+              />
+            </div>
+          )}
+        </section>
 
         <LikedSongsShelf tracks={likedTracks} onUnlike={(track) => unlikeTrack(track.id)} />
 
@@ -247,7 +254,7 @@ const ResultsPage = () => {
           type="button"
           onClick={handleSteer}
           disabled={isLeaving}
-          className="steer-button font-display mt-6 flex min-h-11 w-full items-center gap-2 rounded-full border-[2.5px] border-solid border-[var(--paper)] px-5 py-3 text-left text-[16px] font-bold uppercase leading-[1.4] text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)] disabled:cursor-default md:mt-auto"
+          className="steer-button font-display mt-5 flex min-h-11 w-full shrink-0 items-center gap-2 rounded-full border-[2.5px] border-solid border-[var(--paper)] px-5 py-3 text-left text-[16px] font-bold uppercase leading-[1.4] text-[var(--paper)] transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)] hover:text-[var(--ink)] disabled:cursor-default"
         >
           <Plus size={18} />
           <span>steer...</span>
