@@ -10,8 +10,8 @@ const Controls = ({ onAdd }: ControlsProps) => {
       <button
         type="button"
         onClick={onAdd}
-        aria-label="Add a note"
-        title="Add a note"
+        aria-label="Add a memo"
+        title="Add a memo"
         className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--red)] text-[var(--paper)] transition-transform duration-150 hover:-rotate-2 hover:scale-105"
       >
         <Plus size={22} />

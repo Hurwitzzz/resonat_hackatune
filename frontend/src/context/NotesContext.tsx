@@ -16,6 +16,7 @@ const joinNotes = (notes: Note[]): string =>
     .filter(Boolean)
     .join("; ");
 
+const MAX_NOTES = 6;
 // Local fallback used when the backend (/intent) isn't reachable, so the
 // front end stays testable on its own.
 const buildPseudoExplanation = (notes: Note[]): string => {
@@ -70,7 +71,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   };
   useEffect(() => clearIdleTimer, []);
 
-  // "Finish edit": compile the post-its into an explanation via /intent,
+  // "Finish edit": compile the memos into an explanation via /intent,
   // falling back to a local pseudo explanation when the backend is offline.
   const finishEditing = async (): Promise<string | null> => {
     clearIdleTimer();
@@ -148,7 +149,18 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addNote = () => {
-    setNotes((prev) => [...prev, { id: crypto.randomUUID(), body: "" }]);
+    setNotes((prev) =>
+      prev.length >= MAX_NOTES
+        ? prev
+        : [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              body: "",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+    );
   };
 
   const updateNote = (id: string, body: string) => {

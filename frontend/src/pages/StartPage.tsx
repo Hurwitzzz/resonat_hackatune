@@ -8,6 +8,7 @@ import Slogan from "../components/Slogan";
 import { useNotes } from "../context/NotesContext";
 
 const GREETING = "Hey, what should today sound like?";
+const MAX_MEMOS = 6;
 
 const StartPage = () => {
   const {
@@ -25,7 +26,9 @@ const StartPage = () => {
   const navigate = useNavigate();
 
   const isEmpty = notes.length === 0;
-  const hasValidPostIt = notes.some((note) => note.body.trim());
+  const hasValidMemo = notes.some((note) => note.body.trim());
+  const hasExplanation = Boolean(explanation.trim());
+  const canAddMemo = notes.length < MAX_MEMOS;
 
   const showToast = (message: string) => {
     setToast(message);
@@ -42,8 +45,8 @@ const StartPage = () => {
   );
 
   const handleFindMySound = async () => {
-    if (!hasValidPostIt) {
-      showToast("Add a note first to describe the music you want.");
+    if (!hasValidMemo) {
+      showToast("Add a memo first to describe the music you want.");
       return;
     }
     const hasCards = await confirmSound();
@@ -64,6 +67,14 @@ const StartPage = () => {
     });
   };
 
+  const handleAddMemo = () => {
+    if (!canAddMemo) {
+      showToast("You can add up to 6 memos.");
+      return;
+    }
+    addNote();
+  };
+
   return (
     <main
       className={`start-page-transition relative min-h-screen w-full ${
@@ -75,8 +86,8 @@ const StartPage = () => {
           {/* Center text: greeting at the start, the explanation once editing finishes. */}
           {explanation ? (
             <div className="start-page-copy max-w-2xl text-center">
-              <p className="font-sans mb-3 -rotate-2 text-[28px] font-semibold leading-none text-[var(--red)]">
-                We translated your note into a sound brief.
+              <p className="font-sans mb-3 whitespace-nowrap text-[28px] font-semibold leading-none text-[var(--paper)]">
+                We translated your memo into a sound brief.
               </p>
               <p className="font-serif text-[32px] italic leading-[1.2] text-[var(--paper)]">
                 {explanation}
@@ -92,43 +103,62 @@ const StartPage = () => {
             </h1>
           )}
 
-          {/* Starting state: add button centered beneath the greeting. */}
-          {isEmpty && <AddNoteButton onClick={addNote} />}
+          {hasExplanation && (
+            <button
+              type="button"
+              onClick={handleFindMySound}
+              disabled={isLeaving || isLoadingCards}
+              className="font-display find-sound-button -rotate-3 rounded-full bg-[var(--yellow)] px-6 py-3 text-[16px] font-bold uppercase leading-[1.4] text-[var(--ink)] shadow-[var(--shadow-block)] transition duration-150 hover:rotate-0 hover:bg-[var(--red)] hover:text-[var(--paper)] disabled:cursor-default"
+            >
+              {isLoadingCards ? "Finding..." : "Find my sound"}
+            </button>
+          )}
 
-          {/* Notes cluster — centered, wrapping. The add button sits in the
-              next post-it's slot, not off in a sidebar. */}
+          {/* Starting state: add memo centered beneath the greeting. */}
+          {isEmpty && <AddNoteButton onClick={handleAddMemo} />}
+
+          {/* Notes cluster — centered, wrapping. Add another memo beside the
+              last visible memo. */}
           {!isEmpty && (
             <div className="flex max-w-5xl flex-wrap items-start justify-center gap-8">
-              {notes.map((note, index) => (
-                <NoteCard
-                  key={note.id}
-                  note={note}
-                  index={index}
-                  onChange={updateNote}
-                  onFinishEdit={finishEditing}
-                  viewTransitionName={`note-${note.id}`}
-                />
-              ))}
-              <div className="flex min-h-[150px] w-80 items-center justify-center">
-                <AddNoteButton onClick={addNote} />
-              </div>
+              {notes.map((note, index) => {
+                const isLatestMemo = index === notes.length - 1;
+                const noteCard = (
+                  <NoteCard
+                    note={note}
+                    index={index}
+                    onChange={updateNote}
+                    onFinishEdit={finishEditing}
+                    viewTransitionName={`note-${note.id}`}
+                  />
+                );
+
+                if (!isLatestMemo) {
+                  return <div key={note.id}>{noteCard}</div>;
+                }
+
+                return (
+                  <div
+                    key={note.id}
+                    className="relative flex h-[260px] w-[260px] items-center justify-center"
+                  >
+                    {noteCard}
+                    {canAddMemo && (
+                      <div
+                        className="absolute left-[calc(100%+12px)] top-1/2 z-20 -translate-y-1/2"
+                      >
+                        <AddNoteButton onClick={handleAddMemo} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </Canvas>
 
       <Slogan />
-
-      {hasValidPostIt && (
-        <button
-          type="button"
-          onClick={handleFindMySound}
-          disabled={isLeaving || isLoadingCards}
-          className="font-display find-sound-button fixed bottom-6 right-6 z-[10000] -rotate-3 rounded-full bg-[var(--yellow)] px-6 py-3 text-[16px] font-bold uppercase leading-[1.4] text-[var(--ink)] shadow-[var(--shadow-block)] transition duration-150 hover:rotate-0 hover:bg-[var(--red)] hover:text-[var(--paper)] disabled:cursor-default"
-        >
-          {isLoadingCards ? "Finding..." : "Find my sound"}
-        </button>
-      )}
 
       {toast && (
         <div

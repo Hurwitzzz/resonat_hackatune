@@ -1,11 +1,12 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
-import { particleBurst } from "../particleBurst";
+import { particleBurst, celebrationBurst } from "../particleBurst";
 
 interface MusicCardProps {
   title: string;
   artist: string;
   cover?: string;
   isPlaying?: boolean;
+  surprise?: boolean;
   onOpen?: () => void;
   onLike?: (liked: boolean) => void;
   onDismiss?: () => void;
@@ -48,6 +49,7 @@ const MusicCard = ({
   artist,
   cover,
   isPlaying = false,
+  surprise = false,
   onOpen,
   onLike,
   onDismiss,
@@ -58,6 +60,13 @@ const MusicCard = ({
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     onOpen?.();
+  };
+
+  // Celebrate the surprise card with confetti each time it's hovered.
+  const handleMouseEnter = (event: MouseEvent<HTMLDivElement>) => {
+    if (!surprise) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    celebrationBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
   };
 
   const handleLike = (event: MouseEvent<HTMLButtonElement>) => {
@@ -82,7 +91,8 @@ const MusicCard = ({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={handleKeyDown}
-      aria-label={`${title} by ${artist}`}
+      onMouseEnter={handleMouseEnter}
+      aria-label={`${title} by ${artist}${surprise ? " — special treat" : ""}`}
       className="flex w-52 flex-col overflow-hidden rounded-[6px] bg-[var(--paper)] text-[var(--ink)] shadow-[var(--shadow-block)] outline-none"
     >
       <div className="relative aspect-square bg-[var(--color-border)]">
@@ -93,6 +103,11 @@ const MusicCard = ({
             loading="eager"
             className="absolute inset-0 h-full w-full object-cover"
           />
+        )}
+        {surprise && (
+          <span className="font-display absolute bottom-2 left-2 rounded-full border border-[var(--ink)] bg-[var(--yellow)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--ink)]">
+            ✨ Special treat
+          </span>
         )}
         {isPlaying && (
           <span
