@@ -14,6 +14,10 @@ load_dotenv(pathlib.Path(__file__).resolve().parents[1] / ".env")
 CYANITE_API_KEY = os.environ.get("CYANITE_API_KEY", "")
 CYANITE_BASE_URL = "https://rest-api.cyanite.ai/v1"
 
+# --- Jamendo ---
+JAMENDO_CLIENT_ID = os.environ.get("JAMENDO_CLIENT_ID", "")
+JAMENDO_BASE_URL = "https://api.jamendo.com/v3.0"
+
 # --- OpenAI ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")

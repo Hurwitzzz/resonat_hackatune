@@ -7,10 +7,26 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 import requests
 
 import config
+
+# OpenAI 429 限流：退避重试，不降级。用尽仍抛真错。
+_RETRY_ON = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 4
+
+
+def _post_with_retry(*args, **kwargs) -> requests.Response:
+    for attempt in range(_MAX_RETRIES):
+        resp = requests.post(*args, **kwargs)
+        if getattr(resp, "status_code", None) not in _RETRY_ON or attempt == _MAX_RETRIES - 1:
+            return resp
+        # 优先听服务端的 Retry-After，否则指数退避 1/2/4 秒
+        wait = float(resp.headers.get("Retry-After") or 2 ** attempt)
+        time.sleep(wait)
+    return resp  # ponytail: 循环必返回，这行只为类型完整
 
 
 SYSTEM_PROMPT = """You explain music recommendations in English.
@@ -145,7 +161,7 @@ def _explanation_from_openai(profile_md: str,
                              recommendation_meta: dict,
                              explanation_example: dict | None,
                              recommended_track: dict | None) -> dict:
-    response = requests.post(
+    response = _post_with_retry(
         f"{config.OPENAI_BASE_URL.rstrip('/')}/responses",
         headers={
             "Authorization": f"Bearer {config.OPENAI_API_KEY}",

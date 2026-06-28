@@ -68,12 +68,22 @@ const ResultsPage = () => {
 
   const tracks = useMemo(() => cards.map(toTrack), [cards]);
 
+  // 自动预取解释：串行（一个完成再下一个，不齐发）+ 试过就不再自动重试（成败都记），
+  // 否则失败的 track 会被 effect 反复重发，把 OpenAI 打到 429。手动重试走卡片的 onExplain。
+  const attemptedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    for (const track of tracks) {
-      if (!explanationsByTrackId[track.id]) {
-        void explainTrack(track.id).catch(() => undefined);
+    let cancelled = false;
+    void (async () => {
+      for (const track of tracks) {
+        if (cancelled) return;
+        if (explanationsByTrackId[track.id] || attemptedRef.current.has(track.id)) continue;
+        attemptedRef.current.add(track.id);
+        await explainTrack(track.id).catch(() => undefined);
       }
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [explainTrack, explanationsByTrackId, tracks]);
 
   return (

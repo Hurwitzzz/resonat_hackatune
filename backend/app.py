@@ -108,7 +108,8 @@ def your_sound(user_id: str = "demo"):
 # ─────────── Cyanite 透传（调试用，直接在 /docs 试）───────────
 # ponytail: 给每条结果拼上 title/artist，Swagger 里看得懂；底层就是 cyanite.py
 def _enrich(rows: list[dict]) -> list[dict]:
-    return [{**r, **{k: cyanite.display(r["cyanite_id"]).get(k) for k in ("track_id", "title", "artist")}}
+    return [{**r, **{k: cyanite.display(r["cyanite_id"], r.get("track_id", "")).get(k)
+                     for k in ("track_id", "title", "artist")}}
             for r in rows]
 
 
@@ -123,19 +124,16 @@ def _cy(fn, *args):
 
 
 @app.get("/cyanite/search", tags=["cyanite-debug"],
-         summary="#2 文本搜索 · 自然语言 → 候选曲")
+         summary="#2 文本搜索 · 自然语言 → 候选曲（原始响应）")
 def cyanite_search(query: str, limit: int = 10):
     """官方端点 #2「Find Library Tracks based on a text prompt」。
 
-    把一句自然语言（中英都行）打进音频空间，返回最匹配的曲目，按相关度降序。
+    直接透传 Cyanite 原始 JSON，不经 CSV / normalize。数据来自真实数据库。
 
     - **query**：自然语言描述，如 `lonely midnight train ride, restrained`
-    - **limit**：返回条数（软上限，Cyanite 可能多给几条）
-
-    返回每条带 `cyanite_id` / `score`（相关度）/ `title` / `artist`。
-    若曲目不在数据包内，`title`/`artist` 会为空。
+    - **limit**：返回条数
     """
-    return _enrich(_cy(cyanite.search_by_prompt, query, limit))
+    return _cy(cyanite.search_raw, query, limit)
 
 
 @app.get("/cyanite/similar-single/{cyanite_id}", tags=["cyanite-debug"],

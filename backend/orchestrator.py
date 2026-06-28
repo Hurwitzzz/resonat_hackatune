@@ -109,9 +109,11 @@ def _backfill(s: dict) -> dict | None:
         )
         if best:
             s["candidate_pool"] = [p for p in s["candidate_pool"] if p["cyanite_id"] != best["cyanite_id"]]
-            return _card(best["cyanite_id"], best["final_score"], "similar")
+            enriched = cyanite.enrich_meta([_card(best["cyanite_id"], best["final_score"], "similar")])
+            if enriched:  # 拿不到名字就跳过这首，继续往下补
+                return enriched[0]
     if s["free_text_backlog"]:
-        return s["free_text_backlog"].pop(0)
+        return s["free_text_backlog"].pop(0)  # backlog 已在 confirm 里 enrich 过
     return None
 
 
@@ -147,7 +149,7 @@ def confirm(session_id: str) -> dict:
     """③ 过确认门 → 只跑 freeTextSearch → 填首批推荐 + backlog。不做 similar 粗扩展。"""
     s = _get(session_id)
     results = cyanite.search_by_prompt(s["query_card"]["free_text_query"], limit=config.SEARCH_LIMIT)
-    cards = [_card(r["cyanite_id"], r["score"], "free_text") for r in results]
+    cards = cyanite.enrich_meta([_card(r["cyanite_id"], r["score"], "free_text") for r in results])
     s["visible_cards"] = cards[:config.VISIBLE_N]
     s["free_text_backlog"] = cards[config.VISIBLE_N:]
     return s
@@ -190,7 +192,8 @@ def explain(session_id: str, track_id: str) -> dict:
     provided_likes = user_profiles.liked_cyanite_ids(s["user_id"])
     recommended_tags = cyanite.model_tags(cyanite_id, config.EXPLAIN_TAG_MODELS)
     similar_rows = cyanite.find_similar(cyanite_id, limit=config.EXPLAIN_SIMILAR_LIMIT)
-    display_by_id = {row["cyanite_id"]: cyanite.display(row["cyanite_id"]) for row in similar_rows}
+    display_by_id = {row["cyanite_id"]: cyanite.display(row["cyanite_id"], row.get("track_id", ""))
+                     for row in similar_rows}
     historical_candidates = explanation_builder.build_historical_candidates_from_similar_rows(
         evidence_md,
         similar_rows,

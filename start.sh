@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 (cd frontend && npm install --silent)
 
 # 后端后台起，退出时一起收
-(cd backend && uv run uvicorn app:app --port 8000) &
+(cd backend && uv run uvicorn app:app --reload --port 8000) &
 BACK=$!
 trap 'kill $BACK 2>/dev/null' EXIT
 
