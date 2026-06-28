@@ -54,7 +54,7 @@ const LikedSongsShelf = ({
   const { playingId, play, stop } = useAudioPlayer(tracks);
 
   return (
-    <section className="mt-5 flex min-h-0 flex-col rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.045)] p-3 md:flex-1">
+    <section className="mt-5 flex shrink-0 flex-col rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.045)] p-3">
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] pb-3">
         <h3 className="font-display text-[14px] font-bold uppercase leading-none text-[var(--paper)] opacity-80">
           liked songs
@@ -63,7 +63,7 @@ const LikedSongsShelf = ({
           {tracks.length}
         </span>
       </div>
-      <div className="mt-3 flex max-h-64 min-h-[88px] flex-col gap-2 overflow-y-auto pr-1 md:max-h-none">
+      <div className="mt-3 flex max-h-64 min-h-[88px] flex-col gap-2 overflow-y-auto pr-1">
         {tracks.length === 0 && (
           <p className="font-serif m-auto text-[13px] italic text-[var(--paper)] opacity-40">
             liked tracks land here
@@ -142,7 +142,7 @@ const renderInline = (text: string) =>
   );
 
 const MemoryProfile = ({ md }: { md: string }) => (
-  <div className="mt-4 max-h-[55vh] max-w-3xl overflow-y-auto rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.05)] p-5 [overflow-wrap:anywhere]">
+  <div className="mt-4 max-w-3xl rounded-[6px] border border-[var(--color-border)] bg-[rgba(229,225,214,.05)] p-5 [overflow-wrap:anywhere]">
     {md.split("\n").map((raw, i) => {
       const line = raw.trim();
       if (!line || /^#\s*memory\b/i.test(line)) return null;
@@ -365,22 +365,22 @@ const ResultsPage = () => {
 
   return (
     <main
-      className={`results-page-enter relative isolate flex min-h-screen w-full flex-col overflow-x-hidden bg-[var(--ink)] text-[var(--paper)] md:flex-row md:overflow-hidden ${
+      className={`results-page-enter relative isolate flex min-h-screen w-full flex-col overflow-x-hidden bg-[var(--ink)] text-[var(--paper)] md:h-screen md:flex-row md:overflow-hidden ${
         isLeaving ? "results-page-leaving" : ""
       }`}
     >
       <GrainientBackground />
 
       {/* Left panel — the shrunk taste board. */}
-      <aside className="relative z-10 flex w-full shrink-0 flex-col overflow-y-auto border-b border-[var(--color-border)] p-5 md:h-screen md:w-96 md:overflow-hidden md:border-b-0 md:border-r">
-        <section className="shrink-0 border-b border-[var(--color-border)] pb-6">
+      <aside className="relative z-10 flex w-full shrink-0 flex-col overflow-y-auto border-b border-[var(--color-border)] p-5 md:h-screen md:w-96 md:overflow-y-auto md:border-b-0 md:border-r">
+        <section className="shrink-0 border-b border-[var(--color-border)] pb-8">
           <h2 className="font-display mb-5 text-[24px] font-bold uppercase leading-none text-[var(--paper)]">
             Your taste board
           </h2>
 
           {/* Draggable-free card stack of the brief's memos (click to cycle). */}
           {filledNotes.length > 0 && (
-            <div className="mx-auto h-[210px] w-full max-w-[280px]">
+            <div className="mx-auto mb-2 mt-2 h-[200px] w-full max-w-[280px]">
               <Stack
                 randomRotation
                 sendToBackOnClick
