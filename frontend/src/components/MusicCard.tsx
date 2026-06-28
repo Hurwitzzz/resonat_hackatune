@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { particleBurst, celebrationBurst } from "../particleBurst";
 
 interface MusicCardProps {
@@ -7,6 +8,7 @@ interface MusicCardProps {
   cover?: string;
   isPlaying?: boolean;
   surprise?: boolean;
+  downloadUrl?: string;
   onOpen?: () => void;
   onLike?: (liked: boolean) => void;
   onDismiss?: () => void;
@@ -25,6 +27,22 @@ const HeartIcon = ({ filled }: { filled: boolean }) => (
     aria-hidden="true"
   >
     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+  </svg>
+);
+
+const DownloadIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="20"
+    height="20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
   </svg>
 );
 
@@ -50,11 +68,13 @@ const MusicCard = ({
   cover,
   isPlaying = false,
   surprise = false,
+  downloadUrl,
   onOpen,
   onLike,
   onDismiss,
 }: MusicCardProps) => {
   const [liked, setLiked] = useState(false);
+  const [showLicense, setShowLicense] = useState(false);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -134,6 +154,19 @@ const MusicCard = ({
         </div>
 
         <div className="mt-auto flex justify-end gap-1 pb-3 pt-2">
+          {downloadUrl && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowLicense(true);
+              }}
+              aria-label="Download (high quality)"
+              className="flex h-9 w-9 items-center justify-center rounded-[6px] opacity-60 transition hover:bg-[rgba(27,27,27,.08)] hover:opacity-100"
+            >
+              <DownloadIcon />
+            </button>
+          )}
           <button
             type="button"
             onClick={handleLike}
@@ -154,6 +187,54 @@ const MusicCard = ({
           </button>
         </div>
       </div>
+
+      {showLicense &&
+        downloadUrl &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[20000] flex items-center justify-center bg-[rgba(27,27,27,.88)] p-6 backdrop-blur-sm"
+            onClick={() => setShowLicense(false)}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="download-license-title"
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-md rounded-[10px] bg-[var(--paper)] p-8 text-[var(--ink)] shadow-[var(--shadow-block)]"
+            >
+              <h2
+                id="download-license-title"
+                className="font-display text-[28px] font-bold uppercase leading-none tracking-[-0.01em]"
+              >
+                Personal use only
+              </h2>
+              <p className="font-serif mt-5 text-[16px] leading-[1.6]">
+                These tracks come from Jamendo under a Creative Commons license.
+                You're free to download and enjoy them personally, but{" "}
+                <strong>commercial use is not permitted</strong> without a
+                separate license from Jamendo.
+              </p>
+              <div className="mt-7 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLicense(false)}
+                  className="font-display rounded-full px-5 py-2.5 text-[14px] font-bold uppercase opacity-60 transition hover:opacity-100"
+                >
+                  Cancel
+                </button>
+                <a
+                  href={downloadUrl}
+                  download
+                  onClick={() => setShowLicense(false)}
+                  className="font-display rounded-full border-[2.5px] border-solid border-[var(--ink)] px-5 py-2.5 text-[14px] font-bold uppercase transition-colors hover:border-[var(--yellow)] hover:bg-[var(--yellow)]"
+                >
+                  Download
+                </a>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

@@ -92,10 +92,14 @@ def normalize(resp: dict) -> list[dict]:
 
 
 # --- 检索 ---
-def search_by_prompt(query: str, limit: int = config.SEARCH_LIMIT) -> list[dict]:
-    """freeTextSearch：自然语言 -> 候选曲。"""
+def search_by_prompt(query: str, limit: int = config.SEARCH_LIMIT,
+                     metadata_filter: dict | None = None) -> list[dict]:
+    """freeTextSearch：自然语言 -> 候选曲。metadata_filter 为意图 Agent 生成的硬过滤。"""
+    body = {"query": query}
+    if metadata_filter:
+        body["metadataFilter"] = metadata_filter
     r = _session.post(f"{config.CYANITE_BASE_URL}/private-alpha/library-tracks/search",
-                      params={"limit": limit}, json={"query": query}, timeout=60)
+                      params={"limit": limit}, json=body, timeout=60)
     r.raise_for_status()
     return normalize(r.json())
 

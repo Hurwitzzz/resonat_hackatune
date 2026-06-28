@@ -26,18 +26,21 @@ def _fake_seams(monkeypatch, tmp_path):
         calls["multi"] += 1
         return MULTI
 
-    monkeypatch.setattr(orch.cyanite, "search_by_prompt", lambda q, limit=20: SEARCH)
+    monkeypatch.setattr(orch.cyanite, "search_by_prompt", lambda q, limit=20, metadata_filter=None: SEARCH)
     monkeypatch.setattr(orch.cyanite, "find_similar", fake_similar)
     monkeypatch.setattr(orch.cyanite, "find_similar_multi", fake_multi)
     monkeypatch.setattr(orch.cyanite, "display",
                         lambda cid: {"track_id": cid, "cyanite_id": cid, "title": "T", "artist": "A"})
-    monkeypatch.setattr(orch.intent_compiler, "compile_query_card",
+    monkeypatch.setattr(orch.intent_agent, "compile_query_card",
                         lambda posts, profile_md="": {
                             "interpretation_plain": "test intent",
-                            "free_text_query": "test intent",
+                            "free_text_query": "",
+                            "metadata_filter": None,
                             "soft_targets": [],
                             "negatives": [],
                         })
+    monkeypatch.setattr(orch.intent_agent, "search_args",
+                        lambda posts, profile_md="": {"query": "test intent", "metadata_filter": None})
     monkeypatch.setattr(orch.memory, "_ev_path", lambda u: tmp_path / f"{u}.evidence.md")
     monkeypatch.setattr(orch.memory, "_mem_path", lambda u: tmp_path / f"{u}.memory.md")
     monkeypatch.setattr(orch.user_profiles, "liked_cyanite_ids", lambda u: [])
@@ -55,7 +58,7 @@ def test_intent_does_not_search_until_confirm(monkeypatch, tmp_path):
     hit = {"n": 0}
     _fake_seams(monkeypatch, tmp_path)
     monkeypatch.setattr(orch.cyanite, "search_by_prompt",
-                        lambda q, limit=20: hit.update(n=hit["n"] + 1) or SEARCH)
+                        lambda q, limit=20, metadata_filter=None: hit.update(n=hit["n"] + 1) or SEARCH)
     sid = client.post("/intent", json={"text": "dark betrayal", "user_id": "u1"}).json()["session_id"]
     client.post("/intent/follow-up", json={"session_id": sid, "text": "more restrained"})
     assert hit["n"] == 0  # 确认门：确认前不检索
