@@ -1,19 +1,17 @@
-import Plus from "./icons/Plus";
-
 interface AddNoteButtonProps {
   onClick: () => void;
 }
 
-// The single, consistent "add a post-it" button (starting-page style).
+// Secondary memo affordance.
 const AddNoteButton = ({ onClick }: AddNoteButtonProps) => (
   <button
     type="button"
     onClick={onClick}
-    aria-label="Add a note"
-    title="Add a note"
-    className="flex h-16 w-16 -rotate-3 items-center justify-center rounded-full bg-[var(--yellow)] text-[var(--ink)] shadow-[var(--shadow-block)] transition-transform duration-150 hover:rotate-0 hover:scale-105"
+    aria-label="Add a memo"
+    title="Add a memo"
+    className="font-sans flex h-[130px] w-[130px] items-center justify-center rounded-[10px] border-[2.5px] border-dashed border-[rgba(229,225,214,.62)] bg-transparent px-3 text-center text-[18px] font-semibold uppercase leading-none text-[var(--paper)] transition duration-150 hover:border-[var(--yellow)] hover:text-[var(--yellow)] focus-visible:border-[var(--yellow)] focus-visible:text-[var(--yellow)] focus-visible:outline-none"
   >
-    <Plus size={30} />
+    Add memo
   </button>
 );
 

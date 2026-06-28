@@ -62,9 +62,9 @@ const TrackReasonModal = ({
           </p>
           <h2
             id="track-reason-title"
-            className="font-display mt-2 text-[40px] font-bold uppercase leading-none tracking-[-0.01em]"
+            className="font-display mt-2 whitespace-nowrap text-[30px] font-bold leading-none sm:text-[36px]"
           >
-            Why this song found you
+            why this song found you
           </h2>
           <p className="font-serif mt-6 min-h-40 text-[18px] leading-[1.6] text-[var(--ink)]">
             {visibleText}

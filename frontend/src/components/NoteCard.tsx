@@ -73,12 +73,12 @@ const MEMO_VARIANTS = {
 };
 
 const MEMO_SCALE = [
-  { max: 16, size: 38, line: 1.18 },
-  { max: 42, size: 30, line: 1.22 },
-  { max: 84, size: 24, line: 1.3 },
-  { max: 150, size: 19, line: 1.42 },
-  { max: 280, size: 16, line: 1.5 },
-  { max: Infinity, size: 14, line: 1.55 },
+  { max: 16, size: 30, line: 1.2 },
+  { max: 42, size: 24, line: 1.25 },
+  { max: 84, size: 20, line: 1.35 },
+  { max: 150, size: 17, line: 1.45 },
+  { max: 280, size: 15, line: 1.5 },
+  { max: Infinity, size: 13, line: 1.55 },
 ];
 
 const rgba = (hex: string, alpha: number) => {
@@ -92,8 +92,13 @@ const fitFont = (text = "") => {
   return MEMO_SCALE.find((step) => weight <= step.max) ?? MEMO_SCALE.at(-1)!;
 };
 
-const metaText = (state: MemoState, date: Date | null) => {
-  if (state !== "complete" || !date) return "date:  /  / __:__";
+const parseNoteDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+};
+
+const metaText = (date: Date | null) => {
+  if (!date) return "date:  /  / __:__";
   const pad = (value: number) => String(value).padStart(2, "0");
   return `date: ${pad(date.getMonth() + 1)} / ${pad(date.getDate())} / ${pad(
     date.getHours(),
@@ -115,9 +120,7 @@ const NoteCard = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
-  const settledDateRef = useRef<Date | null>(
-    note.body.trim() ? new Date() : null,
-  );
+  const settledDateRef = useRef<Date | null>(parseNoteDate(note.createdAt));
   const stateRef = useRef<MemoState>(
     note.body.trim() ? "complete" : "empty",
   );
@@ -145,9 +148,9 @@ const NoteCard = ({
     border: memoVariant.border,
     boxShadow: memoVariant.shadow,
     color: memoVariant.text,
-    width: "360px",
-    height: "360px",
-    padding: "30px",
+    width: "260px",
+    height: "260px",
+    padding: "22px",
     viewTransitionName,
   } as CSSProperties;
 
@@ -175,7 +178,7 @@ const NoteCard = ({
       card.style.cursor = next === "complete" && !readOnly ? "pointer" : "text";
     }
     if (footer) {
-      footer.textContent = metaText(next, settledDateRef.current);
+      footer.textContent = metaText(settledDateRef.current);
       footer.style.opacity = next === "complete" ? "1" : "0.6";
     }
     if (hint) {
@@ -193,14 +196,15 @@ const NoteCard = ({
     if (readOnly) {
       setMemoStateRef.current(note.body.trim() ? "complete" : "empty");
     } else if (!note.body.trim() && stateRef.current === "complete") {
-      settledDateRef.current = null;
       setMemoStateRef.current("empty");
     } else if (
       note.body.trim() &&
       stateRef.current === "typing" &&
       document.activeElement !== textAreaRef.current
     ) {
-      settledDateRef.current = new Date();
+      if (!settledDateRef.current) {
+        settledDateRef.current = new Date();
+      }
       setMemoStateRef.current("complete");
       onFinishEdit?.();
     }
@@ -233,11 +237,13 @@ const NoteCard = ({
             lineHeight: initialFit.line,
           }}
         >
-          <span>Describe the music you want...</span>
-          <span
-            className="ml-1 inline-block h-[1.02em] w-[0.56em] animate-pulse align-[-0.16em]"
-            style={{ backgroundColor: memoVariant.caret }}
-          />
+          <span>
+            Describe the music you want...
+            <span
+              className="ml-1 inline-block h-[1.02em] w-0 animate-pulse border-l-[2px] border-solid align-[-0.16em]"
+              style={{ borderColor: memoVariant.caret }}
+            />
+          </span>
         </div>
         <textarea
           ref={textAreaRef}
@@ -255,7 +261,7 @@ const NoteCard = ({
             const next = textAreaRef.current?.value.trim()
               ? "complete"
               : "empty";
-            if (next === "complete") {
+            if (next === "complete" && !settledDateRef.current) {
               settledDateRef.current = new Date();
             }
             setMemoState(next);
@@ -282,7 +288,7 @@ const NoteCard = ({
           opacity: initialState === "complete" ? 1 : 0.6,
         }}
       >
-        {metaText(initialState, settledDateRef.current)}
+        {metaText(settledDateRef.current)}
       </div>
     </div>
   );

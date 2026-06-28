@@ -37,3 +37,31 @@ export const SAMPLE_TRACKS: SampleTrack[] = [
   { id: "161544", title: "System", artist: "Reno Project", url: trackUrl("161544"), cover: "/pic/604655slsdl.jpg" },
   { id: "161545", title: "The Field", artist: "Reno Project", url: trackUrl("161545"), cover: "/pic/963027ilsdl.jpg" },
 ];
+
+// Full pool of cover images in public/pic (23). Used to assign pseudo covers
+// with enough variety to keep on-screen cards from sharing one.
+export const COVER_POOL: string[] = [
+  "/pic/100057absdl.jpg",
+  "/pic/100539absdl.jpg",
+  "/pic/1002710ilsdl.jpg",
+  "/pic/101965absdl.jpg",
+  "/pic/105470absdl.jpg",
+  "/pic/105710absdl.jpg",
+  "/pic/106042absdl.jpg",
+  "/pic/255411fgsdl.jpg",
+  "/pic/255654fgsdl.jpg",
+  "/pic/501995ldsdl.jpg",
+  "/pic/516645ldsdl.jpg",
+  "/pic/600451slsdl.jpg",
+  "/pic/600454slsdl.jpg",
+  "/pic/604655slsdl.jpg",
+  "/pic/62427drsdl.jpg",
+  "/pic/912468absdl.jpg",
+  "/pic/913209absdl.jpg",
+  "/pic/913281absdl.jpg",
+  "/pic/913542absdl.jpg",
+  "/pic/962703ilsdl.jpg",
+  "/pic/962887ilsdl.jpg",
+  "/pic/963027ilsdl.jpg",
+  "/pic/963042ilsdl.jpg",
+];

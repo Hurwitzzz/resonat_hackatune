@@ -13,6 +13,9 @@ const SLOTS = [
   { x: 312, y: 58, rot: 16, z: 8 },
 ];
 const CENTER_SLOT = Math.floor(SLOTS.length / 2);
+// Test-only: always tag the 4th card as the "surprise" recommendation.
+// Real surprise flag should come per-card from the backend later.
+const SURPRISE_SLOT = 3;
 const PRELOAD_ORDER = [CENTER_SLOT, 1, 3, 0, 4];
 const HOVER_PLAY_DELAY_MS = 180;
 const REPLACE_CARD_DELAY_MS = 240;
@@ -51,6 +54,8 @@ const PlaylistFan = ({
   const fanRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<number | null>(null);
   const replaceTimers = useRef<number[]>([]);
+  // Keeps the hovered track playing while its explanation modal is open.
+  const modalOpenRef = useRef(false);
 
   const visibleTracks = useMemo(
     () =>
@@ -134,7 +139,9 @@ const PlaylistFan = ({
   const handleLeave = () => {
     setHovered(null);
     clearHoverTimer();
-    stop();
+    // Opening the explanation modal triggers a mouseleave on the card — keep
+    // the track playing in that case; only stop when the modal isn't open.
+    if (!modalOpenRef.current) stop();
   };
 
   const dismiss = (slotIndex: number, track: SampleTrack) => {
@@ -155,6 +162,7 @@ const PlaylistFan = ({
   };
 
   const openTrack = (track: SampleTrack) => {
+    modalOpenRef.current = true;
     setSelected(track);
     setSelectedReason("");
     setIsReasonLoading(true);
@@ -225,6 +233,7 @@ const PlaylistFan = ({
                       artist={card.track.artist}
                       cover={card.track.cover}
                       isPlaying={playingId === card.track.id}
+                      surprise={i === SURPRISE_SLOT}
                       downloadUrl={
                         (card.track.trackId ?? card.track.id).match(/^\d+$/)
                           ? downloadUrl(card.track.trackId ?? card.track.id)
@@ -253,7 +262,10 @@ const PlaylistFan = ({
           }}
           reasonText={selectedReason}
           isLoading={isReasonLoading}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            modalOpenRef.current = false;
+            setSelected(null);
+          }}
         />
       )}
     </div>
